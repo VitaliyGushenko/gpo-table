@@ -1,0 +1,306 @@
+<nz-drawer
+    [nzClosable]="false"
+    [nzVisible]="visible"
+    nzPlacement="right"
+    [nzTitle]="title"
+    [nzWidth]="400"
+    [nzBodyStyle]="{ padding: '0' }"
+    (nzOnClose)="visible = false">
+    <ng-container *nzDrawerContent>
+        <div class="container-drawer">
+            <div class="container-drawer__body">
+                <form nz-form [formGroup]="form" nzLayout="vertical">
+                    <div nz-row [nzGutter]="8">
+                        @for (entry of items | keyvalue: sortItems; track entry.key) {
+                            <div nz-col nzSpan="24">
+                                <!-- visible=false: значение управляется снаружи страницы — в drawer не рисуется -->
+                                @if (entry.value.visible !== false) {
+                                    <nz-form-item>
+                                        @switch (entry.value.type) {
+                                            <!-- Строка -->
+                                            @case (itemType.string) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <nz-input-group
+                                                        [nzAddOnBefore]="entry.value.beforeList?.length ? addOnBefore : undefined"
+                                                        [nzSuffix]="inputClear">
+                                                        <input
+                                                            nz-input
+                                                            type="text"
+                                                            [formControlName]="entry.key"
+                                                            [placeholder]="entry.value.label" />
+                                                    </nz-input-group>
+                                                    <ng-template #inputClear>
+                                                        @if (form?.get(entry.key)?.value) {
+                                                            <i
+                                                                nz-icon
+                                                                class="ant-input-clear-icon"
+                                                                nzTheme="fill"
+                                                                nzType="close-circle"
+                                                                (click)="form?.get(entry.key)?.setValue(null)"></i>
+                                                        }
+                                                    </ng-template>
+                                                    <ng-template #addOnBefore>
+                                                        <nz-select [formControlName]="entry.key + '__before'">
+                                                            @for (option of entry.value.beforeList; track option.value) {
+                                                                <nz-option [nzLabel]="option.label" [nzValue]="option.value"></nz-option>
+                                                            }
+                                                        </nz-select>
+                                                    </ng-template>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Число -->
+                                            @case (itemType.number) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <nz-input-number
+                                                        style="width: 100%"
+                                                        [formControlName]="entry.key"
+                                                        [nzPlaceHolder]="entry.value.label"></nz-input-number>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Дата -->
+                                            @case (itemType.date) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <nz-date-picker
+                                                        style="width: 100%"
+                                                        [nzMode]="$any(entry.value).pickerMode"
+                                                        [nzFormat]="$any(entry.value).pickerFormat ?? 'dd.MM.yyyy'"
+                                                        [nzDisabledDate]="$any(entry.value).disabledDate"
+                                                        [formControlName]="entry.key"
+                                                        [nzPlaceHolder]="entry.value.label"></nz-date-picker>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Выпадающий список: словари с кодом и наименованием в записях (toCodeDictionary)
+                                                 — nz-option с жирным кодом, остальные — nzOptions (виртуальный скролл) -->
+                                            @case (itemType.select) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                @if (isCodeDictionary(entry.key)) {
+                                                    <nz-select
+                                                        nzShowSearch
+                                                        nzAllowClear
+                                                        [formControlName]="entry.key"
+                                                        style="width: 100%"
+                                                        [nzPlaceHolder]="entry.value.label">
+                                                        @for (option of dictionaries[entry.key] ?? []; track option.value) {
+                                                            <nz-option nzCustomContent [nzLabel]="option.label" [nzValue]="option.value">
+                                                                <b>[{{ option.code }}]</b> {{ option.name }}
+                                                            </nz-option>
+                                                        }
+                                                    </nz-select>
+                                                } @else {
+                                                    <nz-select
+                                                        nzShowSearch
+                                                        nzAllowClear
+                                                        [formControlName]="entry.key"
+                                                        style="width: 100%"
+                                                        [nzPlaceHolder]="entry.value.label"
+                                                        [nzOptions]="dictionaries[entry.key] ?? []"></nz-select>
+                                                }
+                                            }
+                                            <!-- Дерево -->
+                                            @case (itemType.selectTree) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-tree-select
+                                                    style="width: 100%"
+                                                    [nzNodes]="dictionaries[entry.key]"
+                                                    nzShowSearch
+                                                    [formControlName]="entry.key"
+                                                    [nzPlaceHolder]="entry.value.label"
+                                                    [nzDropdownStyle]="{ 'max-height': '500px' }"></nz-tree-select>
+                                            }
+                                            <!-- Множественное дерево -->
+                                            @case (itemType.multipleTreeSelect) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-tree-select
+                                                    style="width: 100%"
+                                                    [nzNodes]="dictionaries[entry.key]"
+                                                    nzShowSearch
+                                                    [nzMaxTagCount]="1"
+                                                    [nzMaxTagPlaceholder]="tagPlaceHolder"
+                                                    [nzMultiple]="true"
+                                                    [formControlName]="entry.key"
+                                                    [nzPlaceHolder]="entry.value.label"
+                                                    [nzDropdownStyle]="{ 'max-height': '500px' }"></nz-tree-select>
+                                                <ng-template #tagPlaceHolder let-selectedList>
+                                                    {{ selectedList.length }} выбраны
+                                                </ng-template>
+                                            }
+                                            <!-- Переключатель -->
+                                            @case (itemType.boolean) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-switch [formControlName]="entry.key"></nz-switch>
+                                            }
+                                            <!-- Число с условием -->
+                                            @case (itemType.numberCond) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <div nz-row [nzGutter]="6" [formGroupName]="entry.key">
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-select
+                                                                style="width: 100%"
+                                                                formControlName="type"
+                                                                [nzOptions]="$any(entry.value).numberConds ?? []">
+                                                            </nz-select>
+                                                        </div>
+                                                        <div nz-col nzSpan="12">
+                                                            <input
+                                                                type="number"
+                                                                nz-input
+                                                                formControlName="value"
+                                                                [placeholder]="entry.value.label" />
+                                                        </div>
+                                                    </div>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Диапазон дат -->
+                                            @case (itemType.dateRange) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <div nz-row [nzGutter]="8" [formGroupName]="entry.key">
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-date-picker
+                                                                style="width: 100%"
+                                                                nzFormat="dd.MM.yyyy"
+                                                                nzPlaceHolder="Начало"
+                                                                formControlName="from">
+                                                            </nz-date-picker>
+                                                        </div>
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-date-picker
+                                                                style="width: 100%"
+                                                                nzFormat="dd.MM.yyyy"
+                                                                nzPlaceHolder="Конец"
+                                                                formControlName="to">
+                                                            </nz-date-picker>
+                                                        </div>
+                                                    </div>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Диапазон лет -->
+                                            @case (itemType.dateYearRange) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <div nz-row [nzGutter]="8" [formGroupName]="entry.key">
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-date-picker
+                                                                style="width: 100%"
+                                                                nzPlaceHolder="Старт"
+                                                                nzMode="year"
+                                                                formControlName="from">
+                                                            </nz-date-picker>
+                                                        </div>
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-date-picker
+                                                                style="width: 100%"
+                                                                nzPlaceHolder="Конец"
+                                                                nzMode="year"
+                                                                formControlName="to">
+                                                            </nz-date-picker>
+                                                        </div>
+                                                    </div>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Диапазон времени -->
+                                            @case (itemType.timeRange) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <div nz-row [nzGutter]="8" [formGroupName]="entry.key">
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-time-picker
+                                                                style="width: 100%"
+                                                                formControlName="from"
+                                                                nzFormat="HH:mm"></nz-time-picker>
+                                                        </div>
+                                                        <div nz-col nzSpan="12">
+                                                            <nz-time-picker
+                                                                style="width: 100%"
+                                                                formControlName="to"
+                                                                nzFormat="HH:mm"></nz-time-picker>
+                                                        </div>
+                                                    </div>
+                                                </nz-form-control>
+                                            }
+                                            <!-- Множественный список (режимы — см. выпадающий список) -->
+                                            @case (itemType.multipleSelect) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                @if (isCodeDictionary(entry.key)) {
+                                                    <nz-select
+                                                        nzShowSearch
+                                                        nzAllowClear
+                                                        nzMode="multiple"
+                                                        style="width: 100%"
+                                                        [formControlName]="entry.key"
+                                                        [nzPlaceHolder]="entry.value.label">
+                                                        @for (option of dictionaries[entry.key] ?? []; track option.value) {
+                                                            <nz-option nzCustomContent [nzLabel]="option.label" [nzValue]="option.value">
+                                                                <b>[{{ option.code }}]</b> {{ option.name }}
+                                                            </nz-option>
+                                                        }
+                                                    </nz-select>
+                                                } @else {
+                                                    <nz-select
+                                                        nzShowSearch
+                                                        nzAllowClear
+                                                        nzMode="multiple"
+                                                        style="width: 100%"
+                                                        [formControlName]="entry.key"
+                                                        [nzPlaceHolder]="entry.value.label"
+                                                        [nzOptions]="dictionaries[entry.key] ?? []"></nz-select>
+                                                }
+                                            }
+                                            <!-- Проекция содержимого страницы -->
+                                            @case (itemType.ngContent) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <ng-content [select]="entry.key"></ng-content>
+                                            }
+                                            <!-- Встраиваемый компонент -->
+                                            @case (itemType.component) {
+                                                <nz-form-label>{{ entry.value.label }}</nz-form-label>
+                                                <nz-form-control>
+                                                    <nz-input-group
+                                                        [nzAddOnBefore]="entry.value.beforeList?.length ? addOnBefore : undefined"
+                                                        [nzSuffix]="inputClear">
+                                                        <input
+                                                            nz-input
+                                                            type="text"
+                                                            (click)="openEmbedded(entry.key, entry.value)"
+                                                            [formControlName]="entry.key"
+                                                            [placeholder]="entry.value.label" />
+                                                    </nz-input-group>
+                                                    <ng-template #inputClear>
+                                                        @if (form?.get(entry.key)?.value) {
+                                                            <i
+                                                                nz-icon
+                                                                class="ant-input-clear-icon"
+                                                                nzTheme="fill"
+                                                                nzType="close-circle"
+                                                                (click)="form?.get(entry.key)?.setValue(null)"></i>
+                                                        }
+                                                    </ng-template>
+                                                    <ng-template #addOnBefore>
+                                                        <nz-select [formControlName]="entry.key + '__before'">
+                                                            @for (option of entry.value.beforeList; track option.value) {
+                                                                <nz-option [nzLabel]="option.label" [nzValue]="option.value"></nz-option>
+                                                            }
+                                                        </nz-select>
+                                                    </ng-template>
+                                                </nz-form-control>
+                                            }
+                                        }
+                                    </nz-form-item>
+                                }
+                            </div>
+                        }
+                    </div>
+                </form>
+            </div>
+            <div class="container-drawer__footer">
+                <button nz-button style="margin-right: 8px" (click)="close()">Закрыть</button>
+                <button nz-button style="margin-right: 8px" (click)="emitClear()">Очистить</button>
+                <button [disabled]="invalid" nz-button nzType="primary" (click)="emitSearch()">Поиск</button>
+            </div>
+        </div>
+    </ng-container>
+</nz-drawer>
