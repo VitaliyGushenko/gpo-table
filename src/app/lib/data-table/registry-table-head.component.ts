@@ -16,9 +16,24 @@ import { RegistryColumn, RegistrySort } from './registry-table.types';
                     [class]="column.cssClass ?? ''"
                     [attr.aria-sort]="getAriaSort(column)">
                     @if (column.isSortable) {
-                        <button type="button" class="registry-table__sort" (click)="toggleSort(column)">
-                            {{ column.title }}
-                            <span class="registry-table__sort-icon" aria-hidden="true">{{ getSortIcon(column) }}</span>
+                        <button
+                            type="button"
+                            class="registry-table__sort"
+                            [attr.aria-label]="'Сортировать: ' + column.title"
+                            (click)="toggleSort(column)">
+                            <span class="registry-table__sort-title">{{ column.title }}</span>
+                            <span class="registry-table__sorter" aria-hidden="true">
+                                <span
+                                    class="registry-table__sorter-arrow"
+                                    [class.registry-table__sorter-arrow--active]="isSortActive(column, 'asc')">
+                                    ▲
+                                </span>
+                                <span
+                                    class="registry-table__sorter-arrow"
+                                    [class.registry-table__sorter-arrow--active]="isSortActive(column, 'desc')">
+                                    ▼
+                                </span>
+                            </span>
                         </button>
                     } @else {
                         {{ column.title }}
@@ -34,21 +49,48 @@ import { RegistryColumn, RegistrySort } from './registry-table.types';
             }
 
             .registry-table__sort {
-                display: inline-flex;
+                display: flex;
                 align-items: center;
-                gap: 4px;
+                justify-content: space-between;
+                gap: 8px;
+                width: 100%;
                 padding: 0;
                 border: 0;
                 background: none;
                 color: inherit;
                 font: inherit;
+                text-align: inherit;
                 cursor: pointer;
             }
 
-            .registry-table__sort-icon {
-                font-size: 10px;
+            .registry-table__sort-title {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .registry-table__sorter {
+                display: inline-flex;
+                flex-direction: column;
+                flex: 0 0 auto;
+                gap: 1px;
                 line-height: 1;
-                opacity: 0.7;
+            }
+
+            .registry-table__sorter-arrow {
+                display: block;
+                padding: 0 2px;
+                border-radius: 2px;
+                color: rgb(0 0 0 / 25%);
+                font-size: 8px;
+                line-height: 8px;
+                transition:
+                    color 0.2s,
+                    background-color 0.2s;
+            }
+
+            .registry-table__sorter-arrow--active {
+                background: #e6f4ff;
+                color: #1677ff;
             }
         `,
     ],
@@ -67,13 +109,10 @@ export class RegistryTableHeadComponent {
         return column.align ?? (column.type === 'number' ? 'right' : 'left');
     }
 
-    /** Индикатор сортировки: нет — ↕, по возрастанию — ▲, по убыванию — ▼ */
-    protected getSortIcon(column: RegistryColumn): string {
+    /** Активна ли стрелка указанного направления */
+    protected isSortActive(column: RegistryColumn, direction: 'asc' | 'desc'): boolean {
         const sort = this.sort();
-        if (sort?.field !== column.field) {
-            return '↕';
-        }
-        return sort.direction === 'asc' ? '▲' : '▼';
+        return sort?.field === column.field && sort.direction === direction;
     }
 
     protected getAriaSort(column: RegistryColumn): string | null {

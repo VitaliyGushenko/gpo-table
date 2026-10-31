@@ -186,6 +186,34 @@ describe('RegistryTableComponent', () => {
         expect(firstCell.textContent?.trim()).toBe('1');
     });
 
+    it('показывает обе стрелки сортировки и подсвечивает активную', async () => {
+        await configure(HostComponent);
+        const fixture = TestBed.createComponent(HostComponent);
+        await render(fixture);
+
+        const header = fixture.nativeElement.querySelector('thead th') as HTMLTableCellElement;
+        const sortButton = header.querySelector('button') as HTMLButtonElement;
+        const arrows = header.querySelectorAll('.registry-table__sorter-arrow');
+        expect(arrows.length).toBe(2);
+        expect(header.querySelectorAll('.registry-table__sorter-arrow--active').length).toBe(0);
+
+        sortButton.click();
+        await render(fixture);
+        let active = header.querySelectorAll('.registry-table__sorter-arrow--active');
+        expect(active.length).toBe(1);
+        expect(active[0].textContent?.trim()).toBe('▲');
+
+        sortButton.click();
+        await render(fixture);
+        active = header.querySelectorAll('.registry-table__sorter-arrow--active');
+        expect(active.length).toBe(1);
+        expect(active[0].textContent?.trim()).toBe('▼');
+
+        sortButton.click();
+        await render(fixture);
+        expect(header.querySelectorAll('.registry-table__sorter-arrow--active').length).toBe(0);
+    });
+
     it('склеивает базовый фильтр и фильтр поиска через AND', async () => {
         await configure(FilterHostComponent);
         const fixture = TestBed.createComponent(FilterHostComponent);
