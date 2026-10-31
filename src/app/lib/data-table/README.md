@@ -13,6 +13,7 @@
 | `registry-table-row.component.ts` | строка `tr[app-registry-table-row]`, ячейки |
 | `registry-table-foot.component.ts` | футер `app-registry-table-foot`, итоги и пагинация |
 | `registry-table-state.service.ts` | сигналы запроса, строк, агрегатов и ошибок |
+| `registry-table-height.service.ts` | высота области таблицы до низа окна |
 | `registry-table.types.ts` | `RegistryColumn`, `RegistryQuery`, `RegistryDataSource` и др. |
 | `registry-table.helpers.ts` | чтение и форматирование значений, текст ошибки, склейка фильтров |
 | `registry-search-fields.ts` | поля расширенного поиска из колонок |
@@ -110,7 +111,8 @@ swagger-интерфейсов приводите строку к своему �
 | `pageSize` | `150` | начальный размер страницы |
 | `pageSizeOptions` | `[10, 30, 50, 100, 150, 200, 250]` | варианты размера |
 | `rowKey` | `'id'` | ключ строки |
-| `scrollHeight` / `scrollWidth` | — | размеры области таблицы |
+| `scrollWidth` | — | ширина для горизонтального скролла; без неё горизонтальный скролл выключен |
+| `bottomOffset` | `0` | отступ снизу вне таблицы: padding страницы или внешний футер |
 | `emptyText` | `'Данные не найдены'` | текст пустого состояния |
 | `isShowFooter` | `true` | встроенный футер |
 | `aggregatesTemplate` | — | свой блок итогов |
@@ -118,7 +120,16 @@ swagger-интерфейсов приводите строку к своему �
 Выходы: `rowClick`, `rowDblClick`, `pageChange`, `pageSizeChange`, `sortChange`, `aggregatesLoaded`,
 `totalChange`.
 
-Публичные методы: `reload()`, `goToPage(page)`, `changePageSize(size)`, `changeSort(sort)`.
+Публичные методы: `reload()`, `refreshHeight()`, `goToPage(page)`, `changePageSize(size)`,
+`changeSort(sort)`.
+
+### Высота
+
+Таблица всегда занимает доступную высоту до низа окна: сервис измеряет положение области
+таблицы и высоту блока под ней (футер + слот `registryTableFooter`), вычитает `bottomOffset`.
+Ограничение задаётся как `max-height`, поэтому при малом числе строк таблица остаётся
+по содержимому, а при большом — появляется вертикальный скролл, шапка остаётся видимой.
+Горизонтальный скролл включается только через `scrollWidth`; без него он выключен.
 
 ## Источники данных
 

@@ -125,6 +125,16 @@ describe('RegistryTableComponent', () => {
         expect(table.querySelectorAll('.name-cell').length).toBe(2);
     });
 
+    it('ограничивает высоту таблицы до низа окна и не включает горизонтальный скролл', async () => {
+        await configure(HostComponent);
+        const fixture = TestBed.createComponent(HostComponent);
+        await render(fixture);
+
+        const scroll = fixture.nativeElement.querySelector('.registry-table__scroll') as HTMLElement;
+        expect(scroll.style.maxHeight).not.toBe('');
+        expect(scroll.style.overflowX).toBe('hidden');
+    });
+
     it('сортирует строки по клику на заголовок', async () => {
         await configure(HostComponent);
         const fixture = TestBed.createComponent(HostComponent);

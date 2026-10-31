@@ -3,12 +3,15 @@ import {
     Component,
     computed,
     contentChildren,
+    DestroyRef,
     effect,
+    ElementRef,
     inject,
     input,
     output,
     TemplateRef,
     untracked,
+    viewChild,
 } from '@angular/core';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 
@@ -17,6 +20,7 @@ import { combineGridifyFilters } from './registry-table.helpers';
 import { RegistryTableBodyComponent } from './registry-table-body.component';
 import { RegistryTableFootComponent } from './registry-table-foot.component';
 import { RegistryTableHeadComponent } from './registry-table-head.component';
+import { RegistryTableHeightService } from './registry-table-height.service';
 import { REGISTRY_DEFAULT_PAGE_SIZE, RegistryTableStateService } from './registry-table-state.service';
 import {
     RegistryAggregates,
@@ -33,7 +37,7 @@ import {
     standalone: true,
     imports: [NzSpinModule, RegistryTableBodyComponent, RegistryTableFootComponent, RegistryTableHeadComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    providers: [RegistryTableStateService],
+    providers: [RegistryTableStateService, RegistryTableHeightService],
     template: `
         <!-- контент над таблицей: заголовок, кнопки, поиск -->
         <ng-content select="[registryTableHeader]" />
@@ -41,7 +45,11 @@ import {
         <nz-spin [nzSpinning]="isTableLoading()">
             <div class="ant-table">
                 <div class="ant-table-container">
-                    <div class="ant-table-content registry-table__scroll" [style.max-height]="scrollHeight()">
+                    <div
+                        #scrollArea
+                        class="ant-table-content registry-table__scroll"
+                        [style.max-height.px]="scrollMaxHeight()"
+                        [style.overflow-x]="scrollWidth() ? 'auto' : 'hidden'">
                         <table [style.min-width]="scrollWidth()">
                             <thead
                                 class="ant-table-thead"
@@ -69,22 +77,24 @@ import {
             </div>
         </nz-spin>
 
-        @if (isShowFooter()) {
-            <app-registry-table-foot
-                [total]="state.total()"
-                [page]="state.page()"
-                [pageSize]="state.pageSize()"
-                [pageSizeOptions]="pageSizeOptions()"
-                [aggregates]="state.aggregates()"
-                [isAggregatesLoading]="state.isAggregatesLoading()"
-                [aggregatesError]="state.aggregatesError()"
-                [aggregatesTemplate]="aggregatesTemplate()"
-                (pageChange)="goToPage($event)"
-                (pageSizeChange)="changePageSize($event)"></app-registry-table-foot>
-        }
+        <!-- футер и контент под таблицей: их высота вычитается из доступной -->
+        <div #belowTable class="registry-table__below">
+            @if (isShowFooter()) {
+                <app-registry-table-foot
+                    [total]="state.total()"
+                    [page]="state.page()"
+                    [pageSize]="state.pageSize()"
+                    [pageSizeOptions]="pageSizeOptions()"
+                    [aggregates]="state.aggregates()"
+                    [isAggregatesLoading]="state.isAggregatesLoading()"
+                    [aggregatesError]="state.aggregatesError()"
+                    [aggregatesTemplate]="aggregatesTemplate()"
+                    (pageChange)="goToPage($event)"
+                    (pageSizeChange)="changePageSize($event)"></app-registry-table-foot>
+            }
 
-        <!-- контент под таблицей: примечание, легенда, свой футер -->
-        <ng-content select="[registryTableFooter]" />
+            <ng-content select="[registryTableFooter]" />
+        </div>
     `,
     styles: [
         `
@@ -93,7 +103,12 @@ import {
             }
 
             .registry-table__scroll {
-                overflow: auto;
+                overflow-y: auto;
+                overflow-x: hidden;
+            }
+
+            .registry-table__below {
+                display: flow-root;
             }
 
             table {
@@ -124,6 +139,9 @@ export class RegistryTableComponent<
     TAggregates = RegistryAggregates,
 > {
     private readonly _state = inject(RegistryTableStateService) as RegistryTableStateService<TRow, TAggregates>;
+    private readonly _heightService = inject(RegistryTableHeightService);
+    private readonly _scrollArea = viewChild<ElementRef<HTMLElement>>('scrollArea');
+    private readonly _belowTable = viewChild<ElementRef<HTMLElement>>('belowTable');
 
     readonly columns = input.required<readonly RegistryColumn[]>();
     readonly dataSource = input.required<RegistryDataSource<TRow, TAggregates>>();
@@ -134,10 +152,10 @@ export class RegistryTableComponent<
     readonly pageSize = input(REGISTRY_DEFAULT_PAGE_SIZE);
     readonly pageSizeOptions = input<readonly number[]>([10, 30, 50, 100, 150, 200, 250]);
     readonly rowKey = input('id');
-    /** Высота области тела; без неё страница скроллится целиком */
-    readonly scrollHeight = input<string>();
-    /** Ширина для горизонтального скролла */
+    /** Ширина для горизонтального скролла; без неё горизонтальный скролл выключен */
     readonly scrollWidth = input<string>();
+    /** Отступ снизу вне таблицы: padding страницы или внешний футер */
+    readonly bottomOffset = input(0);
     readonly emptyText = input('Данные не найдены');
     readonly isShowFooter = input(true);
     readonly aggregatesTemplate = input<TemplateRef<RegistryFooterContext<TAggregates>>>();
@@ -153,6 +171,7 @@ export class RegistryTableComponent<
     protected readonly state = this._state;
     protected readonly visibleColumns = computed(() => this.columns().filter((column) => column.isVisible !== false));
     protected readonly isTableLoading = computed(() => this.state.isLoading() && this.state.hasRows());
+    protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeight());
 
     private readonly _cellTemplates = contentChildren(RegistryCellDirective);
     protected readonly templatesByField = computed(() => {
@@ -231,11 +250,34 @@ export class RegistryTableComponent<
             },
             { allowSignalWrites: true },
         );
+
+        // Высота до низа окна: шапка над таблицей и блок под ней учитываются измерением
+        effect(
+            () => {
+                const scroll = this._scrollArea()?.nativeElement;
+                const below = this._belowTable()?.nativeElement;
+                const bottomOffset = this.bottomOffset();
+
+                untracked(() => {
+                    if (scroll && below) {
+                        this._heightService.watch(scroll, below, bottomOffset);
+                    }
+                });
+            },
+            { allowSignalWrites: true },
+        );
+
+        inject(DestroyRef).onDestroy(() => this._heightService.stop());
     }
 
     /** Перезагрузить строки и агрегаты (после сохранения, удаления и т.п.) */
     reload(): Promise<void> {
         return this._state.reloadAll();
+    }
+
+    /** Пересчитать высоту таблицы, если шапка страницы изменилась без DOM-событий */
+    refreshHeight(): void {
+        this._heightService.refresh();
     }
 
     /** Перейти на страницу; для своего футера или внешней панели */

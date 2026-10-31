@@ -230,7 +230,8 @@ new ColumnFiltered(
    колонка.
 6. **Ничего лишнего в v1.** Ни карточек, ни настроек колонок, ни CRUD, ни фильтров в шапке,
    ни виртуального скролла, ни подсветки.
-7. **Высота — CSS.** `scrollHeight`/`scrollWidth` входами, без измерения DOM и `setTimeout`.
+7. **Высота — до низа окна.** Область таблицы получает `max-height` от сервиса: окно минус
+   верх таблицы, футер и слот под ней. При малом числе строк высота остаётся по содержимому.
 8. **Ошибки и пустота — штатные состояния.** Они проектируются сразу, а не добавляются позже.
 
 ### 3.2. Границы v1
@@ -282,10 +283,9 @@ new ColumnFiltered(
 Почему `thead`/`tbody`/`tr` — это компоненты-атрибуты, а не обёртки-`div`:
 
 - разметка остаётся семантической (`table > thead > tr > th`, `table > tbody > tr > td`);
-- `head`, `body` и `row` находятся в одном `<table>`, поэтому ширины колонок и `nzScroll`
-  согласованы без ручной синхронизации;
-- `nz-table` в режиме `nzTemplateMode` уже используется так в `gpo-lib`, то есть подход проверен
-  в проекте.
+- `head`, `body` и `row` находятся в одном `<table>`, поэтому ширины колонок согласованы
+  без ручной синхронизации;
+- таблица собрана на нативной `<table>` с классами `ant-table`; причины — в уточнении ниже.
 
 **Уточнение по итогам реализации.** Компоненты на `thead`/`tbody` внутри `nz-table` сделать
 не получилось: ng-zorro объявляет на этих же узлах свои компоненты (`NzTheadComponent`,
@@ -305,6 +305,7 @@ src/app/lib/data-table/
 ├─ registry-table-row.component.ts   // tr[app-registry-table-row]
 ├─ registry-table-foot.component.ts  // app-registry-table-foot
 ├─ registry-table-state.service.ts   // RegistryTableStateService — сигналы и загрузка
+├─ registry-table-height.service.ts  // RegistryTableHeightService — высота до низа окна
 ├─ registry-table.types.ts           // RegistryColumn, RegistryQuery, RegistryPage, RegistryDataSource
 ├─ registry-table.helpers.ts         // readRegistryValue, getErrorMessage, combineGridifyFilters
 ├─ registry-search-fields.ts         // buildRegistrySearchFields — поля поиска из колонок
@@ -1098,8 +1099,8 @@ Gridify-строку. Старые классы остаются для ещё �
 | `pageSize` | `number` (150) | Начальный размер страницы |
 | `pageSizeOptions` | `readonly number[]` | Варианты размера страницы |
 | `rowKey` | `string` (`'id'`) | Поле уникального ключа строки для `track` |
-| `scrollHeight` | `string` | Высота области тела; без неё страница скроллится целиком |
-| `scrollWidth` | `string` | Ширина для горизонтального скролла |
+| `scrollWidth` | `string` | Ширина для горизонтального скролла; без неё горизонтальный скролл выключен |
+| `bottomOffset` | `number` (`0`) | Отступ снизу вне таблицы: padding страницы или внешний футер |
 | `emptyText` | `string` (`'Данные не найдены'`) | Текст пустого состояния |
 | `isShowFooter` | `boolean` (`true`) | Показывать встроенный футер (итоги + пагинация) |
 | `aggregatesTemplate` | `TemplateRef<RegistryFooterContext<TAggregates>>` | Шаблон агрегатов во встроенном футере |
@@ -1121,6 +1122,8 @@ Gridify-строку. Старые классы остаются для ещё �
 ```ts
 /** Перезагрузить строки и агрегаты (после сохранения, удаления и т.п.) */
 reload(): Promise<void>;
+/** Пересчитать высоту таблицы, если шапка страницы изменилась без DOM-событий */
+refreshHeight(): void;
 /** Перейти на страницу; для своего футера или внешней панели */
 goToPage(page: number): Promise<void>;
 /** Сменить размер страницы; для своего футера или внешней панели */
@@ -1554,51 +1557,61 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
 <!-- контент над таблицей: заголовок, кнопки, поиск -->
 <ng-content select="[registryTableHeader]" />
 
-<nz-table
-    nzTemplateMode
-    [nzLoading]="isTableLoading()"
-    [nzFrontPagination]="false"
-    [nzShowPagination]="false"
-    [nzScroll]="nzScroll()">
-    <thead
-        app-registry-table-head
-        [columns]="visibleColumns()"
-        [sort]="state.sort()"
-        (sortChange)="changeSort($event)">
-    </thead>
+<nz-spin [nzSpinning]="isTableLoading()">
+    <div class="ant-table">
+        <div class="ant-table-container">
+            <div
+                #scrollArea
+                class="ant-table-content registry-table__scroll"
+                [style.max-height.px]="scrollMaxHeight()"
+                [style.overflow-x]="scrollWidth() ? 'auto' : 'hidden'">
+                <table [style.min-width]="scrollWidth()">
+                    <thead
+                        class="ant-table-thead"
+                        app-registry-table-head
+                        [columns]="visibleColumns()"
+                        [sort]="state.sort()"
+                        (sortChange)="changeSort($event)">
+                    </thead>
 
-    <tbody
-        app-registry-table-body
-        [columns]="visibleColumns()"
-        [rows]="state.rows()"
-        [templates]="templatesByField()"
-        [rowKey]="rowKey()"
-        [isLoading]="state.isLoading()"
-        [error]="state.error()"
-        [emptyText]="emptyText()"
-        (rowClick)="rowClick.emit($event)"
-        (rowDblClick)="rowDblClick.emit($event)"
-        (retry)="reload()">
-    </tbody>
-</nz-table>
+                    <tbody
+                        class="ant-table-tbody"
+                        app-registry-table-body
+                        [columns]="visibleColumns()"
+                        [rows]="state.rows()"
+                        [templates]="templatesByField()"
+                        [rowKey]="rowKey()"
+                        [isLoading]="state.isLoading()"
+                        [error]="state.error()"
+                        [emptyText]="emptyText()"
+                        (rowClick)="rowClick.emit($event)"
+                        (rowDblClick)="rowDblClick.emit($event)"
+                        (retry)="reload()">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</nz-spin>
 
-@if (isShowFooter()) {
-    <app-registry-table-foot
-        [total]="state.total()"
-        [page]="state.page()"
-        [pageSize]="state.pageSize()"
-        [pageSizeOptions]="pageSizeOptions()"
-        [aggregates]="state.aggregates()"
-        [isAggregatesLoading]="state.isAggregatesLoading()"
-        [aggregatesError]="state.aggregatesError()"
-        [aggregatesTemplate]="aggregatesTemplate()"
-        (pageChange)="goToPage($event)"
-        (pageSizeChange)="changePageSize($event)">
-    </app-registry-table-foot>
-}
+<div #belowTable class="registry-table__below">
+    @if (isShowFooter()) {
+        <app-registry-table-foot
+            [total]="state.total()"
+            [page]="state.page()"
+            [pageSize]="state.pageSize()"
+            [pageSizeOptions]="pageSizeOptions()"
+            [aggregates]="state.aggregates()"
+            [isAggregatesLoading]="state.isAggregatesLoading()"
+            [aggregatesError]="state.aggregatesError()"
+            [aggregatesTemplate]="aggregatesTemplate()"
+            (pageChange)="goToPage($event)"
+            (pageSizeChange)="changePageSize($event)">
+        </app-registry-table-foot>
+    }
 
-<!-- контент под таблицей: примечание, легенда, свой футер -->
-<ng-content select="[registryTableFooter]" />
+    <ng-content select="[registryTableFooter]" />
+</div>
 ```
 
 `isTableLoading` — спиннер поверх таблицы только когда уже есть строки; при первой загрузке
@@ -1606,12 +1619,25 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
 
 ```ts
 protected readonly isTableLoading = computed(() => this.state.isLoading() && this.state.hasRows());
-protected readonly nzScroll = computed(() => {
-    const y = this.scrollHeight();
-    const x = this.scrollWidth();
-    return y || x ? { y, x } : undefined;
-});
+protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeight());
 ```
+
+`scrollMaxHeight` приходит из `RegistryTableHeightService` (§3.8.1): область таблицы получает
+`max-height`, поэтому при малом числе строк таблица не растягивается, а при большом — скроллится.
+
+#### 3.8.1. `RegistryTableHeightService`
+
+Сервис провайдится на компонент рядом с состоянием. Он измеряет верх области таблицы и высоту
+блока под ней (футер + слот `registryTableFooter`), вычитает `bottomOffset` и отдаёт сигнал
+`maxHeight`. Слушает `window.resize`, `visualViewport.resize` и `ResizeObserver` на `body`
+и элементах таблицы; пересчёт — не чаще одного кадра.
+
+- высота всегда ограничивается `max-height`, а не фиксируется — 5 строк останутся 5 строками;
+- шапка таблицы входит в измеряемую область и остаётся sticky;
+- футер и контент под таблицей измеряются, поэтому пагинация и примечания не перекрывают таблицу;
+- `bottomOffset` учитывает padding страницы и внешний футер за пределами компонента;
+- минимальная высота — 200px: на низком экране страница проскроллится, таблица не схлопнется;
+- горизонтальный скролл включается только входом `scrollWidth`, иначе `overflow-x: hidden`.
 
 ### 3.9. Директива шаблонных ячеек
 
@@ -1834,6 +1860,7 @@ goToPage(page: number): Promise<void>;
 changePageSize(size: number): Promise<void>;
 changeSort(sort: RegistrySort | null): Promise<void>;
 reload(): Promise<void>;
+refreshHeight(): void;
 ```
 
 Методы возвращают Promise: панель над таблицей может показать свой спиннер или заблокировать
@@ -2347,8 +2374,9 @@ async onSaved(): Promise<void> {
 | `[conditions]`, `[conditionsNumber]`, `[specialColumn]` | `column.search` (auto по типу) + `app-registry-search`; воронок в шапке нет |
 | `[useVirtualScroll]` | нет в v1 |
 | `[bordered]`, `[size]`, `[ellipsis]` | CSS/LESS страницы; ellipsis — в стилях таблицы |
-| `[scrollX]`, `[heightAdd]`, `[widthAdd]` | `[scrollWidth]`, `[scrollHeight]` |
-| `[selectorStart]`, `[selectorEnd]`, `[parentNode]` | нет; высота через CSS |
+| `[scrollX]`, `[widthAdd]` | `[scrollWidth]` |
+| `[heightAdd]` | `[bottomOffset]`; высота всегда считается до низа окна |
+| `[selectorStart]`, `[selectorEnd]`, `[parentNode]` | нет; хрупкие DOM-селекторы не нужны |
 | `[userFontSize]` | CSS страницы |
 | `[unicumField]` | `[rowKey]` |
 | `[formatDate]` | `column.dateFormat` (по умолчанию `dd.MM.yyyy`; в `gpo-lib` — `dd.MM.yyyy, H:mm`) |
@@ -2401,7 +2429,7 @@ async onSaved(): Promise<void> {
 - карточки, переключатель режимов, дерево;
 - виртуальный скролл;
 - подсветку латинских символов;
-- измерение высоты по DOM;
+- хрупкие DOM-селекторы (`selectorStart`/`selectorEnd`) и `setTimeout` для высоты;
 - встроенные «спецколонки» и колонка действий (заменяются шаблонными ячейками);
 - мёртвые входы и поля состояния.
 
@@ -2476,7 +2504,7 @@ async onSaved(): Promise<void> {
 | Шаблоны ячеек | Контент-директива `appRegistryCell` | Не нужно ждать `viewChild` и пересобирать колонки после инициализации |
 | Разбиение | `head` / `body` / `row` / `foot` | Маленькие OnPush-компоненты; строку можно менять, не трогая таблицу |
 | Состояние | `signal`/`computed`, сервис на компонент | Нет утечки между таблицами; нет RxJS-подписок и ручной перерисовки |
-| Высота | `scrollHeight` + CSS | Убирает DOM-измерения, `setTimeout` и хрупкие селекторы |
+| Высота | `max-height` от `RegistryTableHeightService` | Таблица прижимается к низу окна, но при малом числе строк не растягивается; без DOM-селекторов и `setTimeout` |
 | Фильтры колонок | Воронки в шапке — не в v1; расширенный поиск — отдельная интеграция | Самый тяжёлый кусок `gpo-lib` — воронки; поиск в drawer'е проще и не ломает шапку |
 | Поля расширенного поиска | Автоматически из колонок + `column.search` | Не перечислять все поля: только исключения (`search: false`) и справочники |
 | Карточки, настройки, CRUD | Не в v1 | Каждая функция удваивает разметку и состояние; для них есть отдельные компоненты/страницы |

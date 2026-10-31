@@ -64,7 +64,7 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
             [columns]="columns"
             [filter]="filter()"
             [pageSize]="10"
-            [scrollHeight]="scrollHeight"
+            [bottomOffset]="16"
             [aggregatesTemplate]="aggregatesTemplate"
             (rowClick)="onRowClick($event)"
             (rowDblClick)="onRowDblClick($event)">
@@ -209,7 +209,6 @@ export class RegistryTableDemoComponent {
     readonly fail = signal(false);
     readonly lastAction = signal('Демонстрационная таблица готова к работе');
     readonly filter = computed(() => buildDemoFilter(this.onlyActive(), this.quickSearch()));
-    readonly scrollHeight = '420px';
 
     private readonly _staticSource = staticGridifyDataSource<DemoRow>(DEMO_ROWS, isDemoMatch);
     private readonly _table = viewChild.required(RegistryTableComponent);
