@@ -11,6 +11,10 @@ import { RegistryColumn, RegistryColumnResize, RegistrySort } from './registry-t
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <tr>
+            @if (hasActions()) {
+                <th class="registry-table__actions-head" aria-label="Действия"></th>
+            }
+
             @for (column of columns(); track $index) {
                 <th
                     [style.width]="column.width"
@@ -57,6 +61,11 @@ import { RegistryColumn, RegistryColumnResize, RegistrySort } from './registry-t
             th {
                 position: relative;
                 white-space: nowrap;
+            }
+
+            .registry-table__actions-head {
+                width: 64px;
+                text-align: center;
             }
 
             .registry-table__resize {
@@ -136,6 +145,9 @@ import { RegistryColumn, RegistryColumnResize, RegistrySort } from './registry-t
 export class RegistryTableHeadComponent {
     /** Видимые колонки */
     readonly columns = input.required<readonly RegistryColumn[]>();
+
+    /** Показывать первую колонку действий */
+    readonly hasActions = input(false);
 
     /** Текущая сортировка */
     readonly sort = input<RegistrySort | null>(null);

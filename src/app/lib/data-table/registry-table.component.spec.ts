@@ -4,6 +4,7 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { staticGridifyDataSource } from './adapters';
 import { RegistryCellDirective } from './registry-cell.directive';
+import { REGISTRY_TABLE_ACTIONS, RegistryTableActions } from './registry-table-actions';
 import { RegistryTableComponent } from './registry-table.component';
 import { RegistryColumn, RegistryDataSource, RegistryQuery } from './registry-table.types';
 
@@ -98,6 +99,51 @@ class FilterHostComponent {
     };
 }
 
+const actionSpies = {
+    onEdit: jasmine.createSpy('onEdit'),
+    onRemove: jasmine.createSpy('onRemove'),
+};
+
+@Component({
+    standalone: true,
+    imports: [RegistryTableComponent],
+    providers: [
+        {
+            provide: REGISTRY_TABLE_ACTIONS,
+            useValue: {
+                isEdit: true,
+                onEdit: actionSpies.onEdit,
+                onRemove: actionSpies.onRemove,
+            } satisfies RegistryTableActions<Row>,
+        },
+    ],
+    template: `<app-registry-table [dataSource]="dataSource" [columns]="columns" />`,
+})
+class ActionsHostComponent {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: RegistryColumn[] = [{ title: 'Наименование', field: 'name' }];
+}
+
+@Component({
+    standalone: true,
+    imports: [RegistryTableComponent],
+    providers: [
+        {
+            provide: REGISTRY_TABLE_ACTIONS,
+            useValue: {
+                isEdit: false,
+                onEdit: actionSpies.onEdit,
+                onRemove: actionSpies.onRemove,
+            } satisfies RegistryTableActions<Row>,
+        },
+    ],
+    template: `<app-registry-table [dataSource]="dataSource" [columns]="columns" />`,
+})
+class ActionsDisabledHostComponent {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: RegistryColumn[] = [{ title: 'Наименование', field: 'name' }];
+}
+
 async function render(fixture: ComponentFixture<unknown>): Promise<void> {
     fixture.detectChanges();
     await fixture.whenStable();
@@ -112,7 +158,11 @@ async function configure(component: Type<unknown>): Promise<void> {
 }
 
 describe('RegistryTableComponent', () => {
-    beforeEach(() => localStorage.clear());
+    beforeEach(() => {
+        localStorage.clear();
+        actionSpies.onEdit.calls.reset();
+        actionSpies.onRemove.calls.reset();
+    });
 
     it('рисует шапку, строки и шаблонную ячейку внутри table', async () => {
         await configure(HostComponent);
@@ -243,6 +293,66 @@ describe('RegistryTableComponent', () => {
             localStorage.getItem('registry-table-columns:component-test') ?? '{}',
         ) as Record<string, number>;
         expect(stored['id']).toBe(180);
+    });
+
+    it('рисует колонку действий и вызывает сервис редактирования', async () => {
+        await configure(ActionsHostComponent);
+        const fixture = TestBed.createComponent(ActionsHostComponent);
+        await render(fixture);
+
+        const actionsHeader = fixture.nativeElement.querySelector('thead th') as HTMLElement;
+        expect(actionsHeader.getAttribute('aria-label')).toBe('Действия');
+
+        const actionButton = fixture.nativeElement.querySelector(
+            'tbody tr td .registry-table__actions-button',
+        ) as HTMLButtonElement;
+        expect(actionButton).not.toBeNull();
+        actionButton.click();
+        await render(fixture);
+
+        const editItem = Array.from(document.querySelectorAll('.ant-dropdown-menu-item')).find((item) =>
+            item.textContent?.includes('Редактировать'),
+        ) as HTMLElement | undefined;
+        expect(editItem).toBeDefined();
+        editItem?.click();
+        fixture.detectChanges();
+
+        expect(actionSpies.onEdit).toHaveBeenCalled();
+        const row = actionSpies.onEdit.calls.mostRecent().args[0] as Record<string, unknown>;
+        expect(row['id']).toBe(3);
+    });
+
+    it('вызывает сервис удаления из меню действий', async () => {
+        await configure(ActionsHostComponent);
+        const fixture = TestBed.createComponent(ActionsHostComponent);
+        await render(fixture);
+
+        const actionButton = fixture.nativeElement.querySelector(
+            'tbody tr td .registry-table__actions-button',
+        ) as HTMLButtonElement;
+        actionButton.click();
+        await render(fixture);
+
+        const removeItem = Array.from(document.querySelectorAll('.ant-dropdown-menu-item')).find((item) =>
+            item.textContent?.includes('Удалить'),
+        ) as HTMLElement | undefined;
+        expect(removeItem).toBeDefined();
+        removeItem?.click();
+        fixture.detectChanges();
+
+        expect(actionSpies.onRemove).toHaveBeenCalled();
+        const removedRow = actionSpies.onRemove.calls.mostRecent().args[0] as Record<string, unknown>;
+        expect(removedRow['id']).toBe(3);
+    });
+
+    it('не рисует действия без права isEdit', async () => {
+        await configure(ActionsDisabledHostComponent);
+        const fixture = TestBed.createComponent(ActionsDisabledHostComponent);
+        await render(fixture);
+
+        expect(fixture.nativeElement.querySelector('.registry-table__actions-button')).toBeNull();
+        const firstHeader = fixture.nativeElement.querySelector('thead th') as HTMLElement;
+        expect(firstHeader.getAttribute('aria-label')).not.toBe('Действия');
     });
 
     it('склеивает базовый фильтр и фильтр поиска через AND', async () => {

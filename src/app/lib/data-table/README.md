@@ -16,6 +16,8 @@
 | `registry-table-height.service.ts` | высота области таблицы до низа окна |
 | `registry-column-resize.directive.ts` | ручка изменения ширины колонки |
 | `registry-table-column-width.service.ts` | сохранение ширин в `localStorage` |
+| `registry-table-actions.ts` | токен и интерфейс действий строки |
+| `registry-table-row-actions.component.ts` | меню «⋯»: редактировать/удалить |
 | `registry-table.types.ts` | `RegistryColumn`, `RegistryQuery`, `RegistryDataSource` и др. |
 | `registry-table.helpers.ts` | чтение и форматирование значений, текст ошибки, склейка фильтров |
 | `registry-search-fields.ts` | поля расширенного поиска из колонок |
@@ -129,6 +131,49 @@ swagger-интерфейсов приводите строку к своему �
 
 Публичные методы: `reload()`, `refreshHeight()`, `resetColumnWidths()`, `goToPage(page)`,
 `changePageSize(size)`, `changeSort(sort)`.
+
+### Действия строки
+
+Первая колонка с кнопкой «⋯» появляется, если страница провайдит сервис действий под токеном
+`REGISTRY_TABLE_ACTIONS`. Входов для этого у таблицы нет — один сервис можно расширять
+новыми флагами и методами.
+
+```ts
+import {
+    REGISTRY_TABLE_ACTIONS,
+    RegistryTableActions,
+} from 'src/app/lib/data-table';
+
+@Injectable()
+export class ItemsActions implements RegistryTableActions<ItemRow> {
+    readonly isEdit = true;
+
+    onEdit(row: ItemRow): void {
+        // открыть модалку редактирования
+    }
+
+    onRemove(row: ItemRow): void {
+        // подтвердить и удалить, затем table.reload()
+    }
+}
+
+@Component({
+    providers: [{ provide: REGISTRY_TABLE_ACTIONS, useClass: ItemsActions }],
+    template: `<app-registry-table [dataSource]="dataSource" [columns]="columns" />`,
+})
+export class ItemsComponent {}
+```
+
+Правила:
+
+- нет провайдера токена — колонки действий нет;
+- `isEdit: true` разрешает редактирование и удаление; `isEdit: false` скрывает колонку целиком;
+- «Редактировать» показывается, если задан `onEdit`; «Удалить» — если задан `onRemove`;
+- если оба метода не заданы — первая колонка не рисуется;
+- удаление подтверждает страница/сервис, таблица только вызывает метод;
+- после успешного действия страница сама вызывает `table.reload()`;
+- колонка действий фиксированной ширины 64px, не сортируется и не ресайзится;
+- методы могут возвращать `Promise`, таблица их не ждёт и не показывает свой прогресс.
 
 ### Ширины колонок
 

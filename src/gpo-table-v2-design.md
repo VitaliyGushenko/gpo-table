@@ -254,7 +254,7 @@ new ColumnFiltered(
 **Не входит в v1 (осознанно):**
 
 - воронки/фильтры в шапке колонок — нет; расширенный поиск живёт в drawer'е;
-- CRUD, колонка действий, модалки — шаблонная колонка + компоненты страницы;
+- CRUD-модалки и их формы — компоненты страницы; встроенная колонка действий — по сервису токена;
 - карточки, переключатель режимов, дерево;
 - настройки видимости/порядка колонок; ширины колонок сохраняются;
 - виртуальный скролл;
@@ -307,6 +307,8 @@ src/app/lib/data-table/
 ├─ registry-table-height.service.ts  // RegistryTableHeightService — высота до низа окна
 ├─ registry-column-resize.directive.ts // ручка изменения ширины колонки
 ├─ registry-table-column-width.service.ts // сохранение ширин в localStorage
+├─ registry-table-actions.ts         // REGISTRY_TABLE_ACTIONS — действия строки из сервиса
+├─ registry-table-row-actions.component.ts // меню «⋯»: редактировать/удалить
 ├─ registry-table.types.ts           // RegistryColumn, RegistryQuery, RegistryPage, RegistryDataSource
 ├─ registry-table.helpers.ts         // readRegistryValue, getErrorMessage, combineGridifyFilters
 ├─ registry-search-fields.ts         // buildRegistrySearchFields — поля поиска из колонок
@@ -407,6 +409,18 @@ export interface RegistryColumnResize {
     readonly field: string;
     readonly width: number;
 }
+
+/** Действия строки: таблица получает их из сервиса по токену */
+export interface RegistryTableActions<TRow = Record<string, unknown>> {
+    /** Право на редактирование таблицы: разрешает и редактирование, и удаление */
+    readonly isEdit: boolean;
+    onEdit?(row: TRow): void | Promise<void>;
+    onRemove?(row: TRow): void | Promise<void>;
+}
+
+export const REGISTRY_TABLE_ACTIONS = new InjectionToken<RegistryTableActions>(
+    'REGISTRY_TABLE_ACTIONS',
+);
 
 /** Вид поля расширенного поиска */
 export type RegistrySearchKind =
@@ -1687,6 +1701,39 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 - `resetColumnWidths()` очищает ширины и удаляет ключ;
 - ширина хранится по `field`, поэтому поля колонок должны быть уникальны.
 
+#### 3.8.3. Действия строки
+
+Таблица не получает действия через входы. Страница провайдит сервис под токеном
+`REGISTRY_TABLE_ACTIONS`; таблица инжектит его опционально и строит первую колонку «⋯».
+
+```ts
+@Injectable()
+export class ItemsActions implements RegistryTableActions<ItemRow> {
+    readonly isEdit = true;
+
+    onEdit(row: ItemRow): void {
+        // модалка редактирования
+    }
+
+    onRemove(row: ItemRow): void {
+        // подтверждение и удаление
+    }
+}
+
+@Component({
+    providers: [{ provide: REGISTRY_TABLE_ACTIONS, useClass: ItemsActions }],
+})
+export class ItemsComponent {}
+```
+
+- `isEdit` — единое право: `true` разрешает и редактирование, и удаление; `false` скрывает колонку;
+- «Редактировать» показывается при наличии `onEdit`, «Удалить» — при наличии `onRemove`;
+- оба метода не заданы — колонки действий нет;
+- подтверждение удаления и обновление данных — ответственность страницы;
+  после успешного действия она вызывает `table.reload()`;
+- колонка фиксированной ширины 64px, не сортируется и не ресайзится;
+- новые флаги и действия добавляются в интерфейс сервиса, а не во входы таблицы.
+
 ### 3.9. Директива шаблонных ячеек
 
 ```ts
@@ -2439,8 +2486,9 @@ async onSaved(): Promise<void> {
 | `(clickedTd)` | `(rowClick)` |
 | `(dblclickRow)` | `(rowDblClick)` |
 | `(clickActiveCell)` | шаблонная колонка |
-| `[editAccess]`, `[actionsForm]` | шаблонная колонка + свой компонент/модалка |
-| `[customButtons]`, `[isShowActions]`, `[isShowSettings]` | контент над таблицей: атрибут `registryTableHeader` |
+| `[editAccess]`, `[actionsForm]` | сервис `REGISTRY_TABLE_ACTIONS`: `isEdit`, `onEdit`, `onRemove` |
+| `[customButtons]`, `[isShowSettings]` | контент над таблицей: атрибут `registryTableHeader` |
+| `[isShowActions]` | колонка действий показывается, если сервис действий провайдится и `isEdit: true` |
 | `[title]`, `[legend]` | контент над/под таблицей: `registryTableHeader` / `registryTableFooter` |
 | `[footerTemplate]` | `aggregatesTemplate` или `registryTableFooter` (при `[isShowFooter]="false"`) |
 | `[customFirstThCol]`, `[customTdBtn]`, `[statusTd]` | шаблонная колонка |
@@ -2497,7 +2545,7 @@ async onSaved(): Promise<void> {
 
 **Убираем из таблицы:**
 
-- CRUD и колонку действий;
+- CRUD-модалки и формы — компоненты страницы; встроенная колонка действий только вызывает сервис;
 - воронки/фильтры в шапке колонок (расширенный поиск — отдельный drawer);
 - настройки видимости/порядка колонок и `localStorage` (ширины колонок уже сохраняются);
 - карточки, переключатель режимов, дерево;
@@ -2580,6 +2628,7 @@ async onSaved(): Promise<void> {
 | Состояние | `signal`/`computed`, сервис на компонент | Нет утечки между таблицами; нет RxJS-подписок и ручной перерисовки |
 | Высота | `max-height` от `RegistryTableHeightService` | Таблица прижимается к низу окна, но при малом числе строк не растягивается; без DOM-селекторов и `setTimeout` |
 | Ширины колонок | `RegistryColumnResizeDirective` + `RegistryTableColumnWidthService` | Resize остаётся в шапке, сохранение — отдельным сервисом; ключ `storageKey` не даёт таблицам перетирать ширины друг друга |
+| Действия строки | Сервис по токену `REGISTRY_TABLE_ACTIONS` | Не плодить входы таблицы; новые флаги и методы добавляются в сервис страницы |
 | Фильтры колонок | Воронки в шапке — не в v1; расширенный поиск — отдельная интеграция | Самый тяжёлый кусок `gpo-lib` — воронки; поиск в drawer'е проще и не ломает шапку |
 | Поля расширенного поиска | Автоматически из колонок + `column.search` | Не перечислять все поля: только исключения (`search: false`) и справочники |
 | Карточки, настройки, CRUD | Не в v1 | Каждая функция удваивает разметку и состояние; для них есть отдельные компоненты/страницы |

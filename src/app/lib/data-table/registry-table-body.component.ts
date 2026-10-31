@@ -16,7 +16,7 @@ import { RegistryCellTemplate, RegistryColumn } from './registry-table.types';
     template: `
         @if (error()) {
             <tr class="registry-table__state-row">
-                <td [attr.colspan]="columns().length">
+                <td [attr.colspan]="getColspan()">
                     <div class="registry-table__state" role="alert" aria-live="assertive">
                         <span>{{ error() }}</span>
                         <button nz-button nzSize="small" (click)="retry.emit()">Повторить</button>
@@ -25,7 +25,7 @@ import { RegistryCellTemplate, RegistryColumn } from './registry-table.types';
             </tr>
         } @else if (isLoading() && !rows().length) {
             <tr class="registry-table__state-row">
-                <td [attr.colspan]="columns().length">
+                <td [attr.colspan]="getColspan()">
                     <div class="registry-table__state" role="status" aria-live="polite">
                         <nz-spin nzSimple nzSize="small"></nz-spin>
                         <span>Загрузка данных</span>
@@ -34,7 +34,7 @@ import { RegistryCellTemplate, RegistryColumn } from './registry-table.types';
             </tr>
         } @else if (!rows().length) {
             <tr class="registry-table__state-row">
-                <td [attr.colspan]="columns().length">
+                <td [attr.colspan]="getColspan()">
                     <div role="status" aria-live="polite">
                         <nz-empty [nzNotFoundContent]="emptyText()"></nz-empty>
                     </div>
@@ -49,6 +49,7 @@ import { RegistryCellTemplate, RegistryColumn } from './registry-table.types';
                     [index]="$index"
                     [columns]="columns()"
                     [templates]="templates()"
+                    [hasActions]="hasActions()"
                     (click)="rowClick.emit(row)"
                     (dblclick)="rowDblClick.emit(row)"
                     (keydown.enter)="onRowKeydown($event, row)"></tr>
@@ -79,6 +80,7 @@ export class RegistryTableBodyComponent<TRow extends object = Record<string, unk
     readonly isLoading = input(false);
     readonly error = input<string | null>(null);
     readonly emptyText = input('Данные не найдены');
+    readonly hasActions = input(false);
 
     readonly rowClick = output<TRow>();
     readonly rowDblClick = output<TRow>();
@@ -87,6 +89,10 @@ export class RegistryTableBodyComponent<TRow extends object = Record<string, unk
     /** Устойчивый ключ строки; при отсутствии rowKey — индекс */
     protected trackRow(index: number, row: TRow): unknown {
         return readRegistryValue(row, this.rowKey()) ?? index;
+    }
+
+    protected getColspan(): number {
+        return this.columns().length + (this.hasActions() ? 1 : 0);
     }
 
     /** Enter на самой строке открывает её; Enter внутри кнопки/ссылки не дублирует клик */

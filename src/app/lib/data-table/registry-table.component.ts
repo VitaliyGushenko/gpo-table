@@ -19,6 +19,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { RegistryCellDirective } from './registry-cell.directive';
 import { RegistryTableColumnWidthService } from './registry-table-column-width.service';
 import { combineGridifyFilters } from './registry-table.helpers';
+import { REGISTRY_TABLE_ACTIONS, RegistryTableActions } from './registry-table-actions';
 import { RegistryTableBodyComponent } from './registry-table-body.component';
 import { RegistryTableFootComponent } from './registry-table-foot.component';
 import { RegistryTableHeadComponent } from './registry-table-head.component';
@@ -59,6 +60,7 @@ import {
                                 class="ant-table-thead"
                                 app-registry-table-head
                                 [columns]="visibleColumns()"
+                                [hasActions]="hasActions()"
                                 [sort]="state.sort()"
                                 (sortChange)="changeSort($event)"
                                 (columnResize)="onColumnResize($event)"></thead>
@@ -67,6 +69,7 @@ import {
                                 class="ant-table-tbody"
                                 app-registry-table-body
                                 [columns]="visibleColumns()"
+                                [hasActions]="hasActions()"
                                 [rows]="state.rows()"
                                 [templates]="templatesByField()"
                                 [rowKey]="rowKey()"
@@ -145,6 +148,9 @@ export class RegistryTableComponent<
     private readonly _state = inject(RegistryTableStateService) as RegistryTableStateService<TRow, TAggregates>;
     private readonly _heightService = inject(RegistryTableHeightService);
     private readonly _columnWidthService = inject(RegistryTableColumnWidthService);
+    private readonly _actions = inject(REGISTRY_TABLE_ACTIONS, { optional: true }) as
+        | RegistryTableActions<TRow>
+        | null;
     private readonly _scrollArea = viewChild<ElementRef<HTMLElement>>('scrollArea');
     private readonly _belowTable = viewChild<ElementRef<HTMLElement>>('belowTable');
     private readonly _columnWidths = signal<RegistryColumnWidths>({});
@@ -177,6 +183,13 @@ export class RegistryTableComponent<
     readonly totalChange = output<number>();
 
     protected readonly state = this._state;
+    protected readonly hasActions = computed(() => {
+        const actions = this._actions;
+        if (!actions?.isEdit) {
+            return false;
+        }
+        return !!actions.onEdit || !!actions.onRemove;
+    });
     private readonly _tableColumns = computed(() => {
         const widths = this._columnWidths();
         return this.columns().map((column) => {
