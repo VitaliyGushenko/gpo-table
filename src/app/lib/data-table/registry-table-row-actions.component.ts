@@ -3,7 +3,7 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzDropDownModule } from 'ng-zorro-antd/dropdown';
 import { NzMenuModule } from 'ng-zorro-antd/menu';
 
-import { REGISTRY_TABLE_ACTIONS } from './registry-table-actions';
+import { REGISTRY_TABLE_ACTIONS, isRegistryTableEditAllowed } from './registry-table-actions';
 
 /** Меню действий строки: «Редактировать» и «Удалить» из сервиса страницы */
 @Component({
@@ -60,10 +60,10 @@ export class RegistryTableRowActionsComponent {
     private readonly _actions = inject(REGISTRY_TABLE_ACTIONS, { optional: true });
 
     protected readonly canEdit = computed(
-        () => this._actions?.isEdit === true && !!this._actions.onEdit,
+        () => isRegistryTableEditAllowed(this._actions) && !!this._actions?.onEdit,
     );
     protected readonly canRemove = computed(
-        () => this._actions?.isEdit === true && !!this._actions.onRemove,
+        () => isRegistryTableEditAllowed(this._actions) && !!this._actions?.onRemove,
     );
 
     protected onEdit(): void {

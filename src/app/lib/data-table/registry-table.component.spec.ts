@@ -1,4 +1,4 @@
-import { Component, Type, viewChild } from '@angular/core';
+import { Component, signal, Type, viewChild } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
@@ -103,6 +103,7 @@ const actionSpies = {
     onEdit: jasmine.createSpy('onEdit'),
     onRemove: jasmine.createSpy('onRemove'),
 };
+const canEditSignal = signal(true);
 
 @Component({
     standalone: true,
@@ -144,6 +145,26 @@ class ActionsDisabledHostComponent {
     readonly columns: RegistryColumn[] = [{ title: 'Наименование', field: 'name' }];
 }
 
+@Component({
+    standalone: true,
+    imports: [RegistryTableComponent],
+    providers: [
+        {
+            provide: REGISTRY_TABLE_ACTIONS,
+            useValue: {
+                isEdit: canEditSignal,
+                onEdit: actionSpies.onEdit,
+                onRemove: actionSpies.onRemove,
+            } satisfies RegistryTableActions<Row>,
+        },
+    ],
+    template: `<app-registry-table [dataSource]="dataSource" [columns]="columns" />`,
+})
+class DynamicActionsHostComponent {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: RegistryColumn[] = [{ title: 'Наименование', field: 'name' }];
+}
+
 async function render(fixture: ComponentFixture<unknown>): Promise<void> {
     fixture.detectChanges();
     await fixture.whenStable();
@@ -162,6 +183,7 @@ describe('RegistryTableComponent', () => {
         localStorage.clear();
         actionSpies.onEdit.calls.reset();
         actionSpies.onRemove.calls.reset();
+        canEditSignal.set(true);
     });
 
     it('рисует шапку, строки и шаблонную ячейку внутри table', async () => {
@@ -353,6 +375,22 @@ describe('RegistryTableComponent', () => {
         expect(fixture.nativeElement.querySelector('.registry-table__actions-button')).toBeNull();
         const firstHeader = fixture.nativeElement.querySelector('thead th') as HTMLElement;
         expect(firstHeader.getAttribute('aria-label')).not.toBe('Действия');
+    });
+
+    it('реагирует на смену isEdit-сигнала', async () => {
+        await configure(DynamicActionsHostComponent);
+        const fixture = TestBed.createComponent(DynamicActionsHostComponent);
+        await render(fixture);
+
+        expect(fixture.nativeElement.querySelector('.registry-table__actions-button')).not.toBeNull();
+
+        canEditSignal.set(false);
+        await render(fixture);
+        expect(fixture.nativeElement.querySelector('.registry-table__actions-button')).toBeNull();
+
+        canEditSignal.set(true);
+        await render(fixture);
+        expect(fixture.nativeElement.querySelector('.registry-table__actions-button')).not.toBeNull();
     });
 
     it('склеивает базовый фильтр и фильтр поиска через AND', async () => {

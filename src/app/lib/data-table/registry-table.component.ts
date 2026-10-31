@@ -19,7 +19,7 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 import { RegistryCellDirective } from './registry-cell.directive';
 import { RegistryTableColumnWidthService } from './registry-table-column-width.service';
 import { combineGridifyFilters } from './registry-table.helpers';
-import { REGISTRY_TABLE_ACTIONS, RegistryTableActions } from './registry-table-actions';
+import { REGISTRY_TABLE_ACTIONS, isRegistryTableEditAllowed, RegistryTableActions } from './registry-table-actions';
 import { RegistryTableBodyComponent } from './registry-table-body.component';
 import { RegistryTableFootComponent } from './registry-table-foot.component';
 import { RegistryTableHeadComponent } from './registry-table-head.component';
@@ -185,10 +185,10 @@ export class RegistryTableComponent<
     protected readonly state = this._state;
     protected readonly hasActions = computed(() => {
         const actions = this._actions;
-        if (!actions?.isEdit) {
+        if (!isRegistryTableEditAllowed(actions)) {
             return false;
         }
-        return !!actions.onEdit || !!actions.onRemove;
+        return !!actions?.onEdit || !!actions?.onRemove;
     });
     private readonly _tableColumns = computed(() => {
         const widths = this._columnWidths();

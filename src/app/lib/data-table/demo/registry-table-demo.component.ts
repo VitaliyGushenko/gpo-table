@@ -46,11 +46,12 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
 });
 
 const demoActionMessage = signal('Демонстрационная таблица готова к работе');
+const demoCanEdit = signal(true);
 
 /** Демонстрационный сервис действий: показывает, откуда таблица берёт edit/remove */
 @Injectable()
 class DemoRowActionsService implements RegistryTableActions<Record<string, unknown>> {
-    readonly isEdit = true;
+    readonly isEdit = demoCanEdit;
 
     onEdit(row: Record<string, unknown>): void {
         demoActionMessage.set(`Редактирование: ${row['name']}`);
@@ -107,6 +108,12 @@ class DemoRowActionsService implements RegistryTableActions<Record<string, unkno
                             [ngModel]="onlyActive()"
                             (ngModelChange)="onlyActive.set($event)"></nz-switch>
                         Только активные
+                    </label>
+                    <label class="demo-toolbar__switch">
+                        <nz-switch
+                            [ngModel]="canEdit()"
+                            (ngModelChange)="canEdit.set($event)"></nz-switch>
+                        Права на редактирование
                     </label>
                     <button nz-button (click)="reload()">Обновить</button>
                     <button nz-button (click)="resetWidths()">Сбросить ширины</button>
@@ -228,6 +235,7 @@ export class RegistryTableDemoComponent {
     readonly quickSearch = signal('');
     readonly fail = signal(false);
     readonly lastAction = demoActionMessage;
+    readonly canEdit = demoCanEdit;
     readonly filter = computed(() => buildDemoFilter(this.onlyActive(), this.quickSearch()));
 
     private readonly _staticSource = staticGridifyDataSource<DemoRow>(DEMO_ROWS, isDemoMatch);

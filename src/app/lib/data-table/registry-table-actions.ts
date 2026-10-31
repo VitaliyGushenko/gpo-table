@@ -6,10 +6,23 @@ import { InjectionToken } from '@angular/core';
  * первую колонку с меню действий.
  */
 export interface RegistryTableActions<TRow = Record<string, unknown>> {
-    /** Пользователь уполномочен редактировать таблицу: разрешает редактирование и удаление */
-    readonly isEdit: boolean;
+    /**
+     * Право на редактирование таблицы: разрешает и редактирование, и удаление.
+     * Можно передать boolean или функцию/сигнал для динамических прав.
+     */
+    readonly isEdit: boolean | (() => boolean);
     onEdit?(row: TRow): void | Promise<void>;
     onRemove?(row: TRow): void | Promise<void>;
+}
+
+/** Проверить право на действия; поддерживает boolean и сигнал/функцию */
+export function isRegistryTableEditAllowed<TRow>(
+    actions: RegistryTableActions<TRow> | null | undefined,
+): boolean {
+    if (!actions) {
+        return false;
+    }
+    return typeof actions.isEdit === 'function' ? actions.isEdit() : actions.isEdit;
 }
 
 /** Токен сервиса действий; без провайдера колонка действий не рисуется */

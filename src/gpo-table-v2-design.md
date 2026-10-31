@@ -412,8 +412,8 @@ export interface RegistryColumnResize {
 
 /** Действия строки: таблица получает их из сервиса по токену */
 export interface RegistryTableActions<TRow = Record<string, unknown>> {
-    /** Право на редактирование таблицы: разрешает и редактирование, и удаление */
-    readonly isEdit: boolean;
+    /** Право на редактирование таблицы: boolean или сигнал/функция для динамических прав */
+    readonly isEdit: boolean | (() => boolean);
     onEdit?(row: TRow): void | Promise<void>;
     onRemove?(row: TRow): void | Promise<void>;
 }
@@ -1727,6 +1727,7 @@ export class ItemsComponent {}
 ```
 
 - `isEdit` — единое право: `true` разрешает и редактирование, и удаление; `false` скрывает колонку;
+  можно передать сигнал или функцию — таблица пересчитает колонку при смене прав;
 - «Редактировать» показывается при наличии `onEdit`, «Удалить» — при наличии `onRemove`;
 - оба метода не заданы — колонки действий нет;
 - подтверждение удаления и обновление данных — ответственность страницы;
