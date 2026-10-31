@@ -22,7 +22,7 @@ const ROWS: readonly Row[] = [
     standalone: true,
     imports: [RegistryCellDirective, RegistryTableComponent],
     template: `
-        <app-registry-table [dataSource]="dataSource" [columns]="columns" [pageSize]="2">
+        <app-registry-table [dataSource]="dataSource" [columns]="columns" [pageSize]="2" [storageKey]="'component-test'">
             <ng-template appRegistryCell="name" let-value="value">
                 <span class="name-cell">{{ value }}</span>
             </ng-template>
@@ -112,6 +112,8 @@ async function configure(component: Type<unknown>): Promise<void> {
 }
 
 describe('RegistryTableComponent', () => {
+    beforeEach(() => localStorage.clear());
+
     it('рисует шапку, строки и шаблонную ячейку внутри table', async () => {
         await configure(HostComponent);
         const fixture = TestBed.createComponent(HostComponent);
@@ -125,14 +127,13 @@ describe('RegistryTableComponent', () => {
         expect(table.querySelectorAll('.name-cell').length).toBe(2);
     });
 
-    it('ограничивает высоту таблицы до низа окна и не включает горизонтальный скролл', async () => {
+    it('ограничивает высоту таблицы до низа окна', async () => {
         await configure(HostComponent);
         const fixture = TestBed.createComponent(HostComponent);
         await render(fixture);
 
         const scroll = fixture.nativeElement.querySelector('.registry-table__scroll') as HTMLElement;
         expect(scroll.style.maxHeight).not.toBe('');
-        expect(scroll.style.overflowX).toBe('hidden');
     });
 
     it('сортирует строки по клику на заголовок', async () => {
@@ -212,6 +213,36 @@ describe('RegistryTableComponent', () => {
         sortButton.click();
         await render(fixture);
         expect(header.querySelectorAll('.registry-table__sorter-arrow--active').length).toBe(0);
+    });
+
+    it('восстанавливает сохранённую ширину колонки', async () => {
+        localStorage.setItem('registry-table-columns:component-test', JSON.stringify({ id: 200 }));
+        await configure(HostComponent);
+        const fixture = TestBed.createComponent(HostComponent);
+        await render(fixture);
+
+        const th = fixture.nativeElement.querySelector('thead th') as HTMLElement;
+        expect(th.style.width).toBe('200px');
+    });
+
+    it('сохраняет ширину колонки в localStorage', async () => {
+        await configure(HostComponent);
+        const fixture = TestBed.createComponent(HostComponent);
+        await render(fixture);
+
+        const th = fixture.nativeElement.querySelector('thead th') as HTMLElement;
+        spyOn(th, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, 120, 40));
+        const handle = th.querySelector('.registry-table__resize') as HTMLElement;
+
+        handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 100, button: 0 }));
+        document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 160 }));
+        document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 160 }));
+        await render(fixture);
+
+        const stored = JSON.parse(
+            localStorage.getItem('registry-table-columns:component-test') ?? '{}',
+        ) as Record<string, number>;
+        expect(stored['id']).toBe(180);
     });
 
     it('склеивает базовый фильтр и фильтр поиска через AND', async () => {

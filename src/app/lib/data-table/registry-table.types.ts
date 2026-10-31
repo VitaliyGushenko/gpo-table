@@ -6,10 +6,22 @@ export type RegistryColumnType = 'text' | 'number' | 'date' | 'template';
 /** Значение, которое таблица показывает без шаблона */
 export type RegistryValue = string | number | boolean | Date | null | undefined;
 
+/** Минимальная ширина колонки при изменении размера */
+export const REGISTRY_COLUMN_MIN_WIDTH = 60;
+
+/** Ширины колонок, сохранённые по полю строки */
+export type RegistryColumnWidths = Readonly<Record<string, number>>;
+
 /** Сортировка одной колонки */
 export interface RegistrySort {
     readonly field: string;
     readonly direction: 'asc' | 'desc';
+}
+
+/** Изменение ширины колонки */
+export interface RegistryColumnResize {
+    readonly field: string;
+    readonly width: number;
 }
 
 /** Вид поля расширенного поиска */
@@ -70,6 +82,8 @@ export interface RegistryColumn<TField extends string = string> {
     readonly width?: string;
     /** Можно ли сортировать; по умолчанию false */
     readonly isSortable?: boolean;
+    /** Можно ли менять ширину; по умолчанию true */
+    readonly isResizable?: boolean;
     /** Показывать ли колонку; по умолчанию true */
     readonly isVisible?: boolean;
     /** Выравнивание; по умолчанию left, для number — right */

@@ -14,6 +14,8 @@
 | `registry-table-foot.component.ts` | футер `app-registry-table-foot`, итоги и пагинация |
 | `registry-table-state.service.ts` | сигналы запроса, строк, агрегатов и ошибок |
 | `registry-table-height.service.ts` | высота области таблицы до низа окна |
+| `registry-column-resize.directive.ts` | ручка изменения ширины колонки |
+| `registry-table-column-width.service.ts` | сохранение ширин в `localStorage` |
 | `registry-table.types.ts` | `RegistryColumn`, `RegistryQuery`, `RegistryDataSource` и др. |
 | `registry-table.helpers.ts` | чтение и форматирование значений, текст ошибки, склейка фильтров |
 | `registry-search-fields.ts` | поля расширенного поиска из колонок |
@@ -75,6 +77,7 @@ interface RegistryColumn<TField extends string = string> {
     type?: 'text' | 'number' | 'date' | 'template';
     width?: string;
     isSortable?: boolean;
+    isResizable?: boolean;    // по умолчанию true
     isVisible?: boolean;
     align?: 'left' | 'center' | 'right';
     dateFormat?: string;      // по умолчанию dd.MM.yyyy
@@ -114,7 +117,8 @@ swagger-интерфейсов приводите строку к своему �
 | `pageSize` | `150` | начальный размер страницы |
 | `pageSizeOptions` | `[10, 30, 50, 100, 150, 200, 250]` | варианты размера |
 | `rowKey` | `'id'` | ключ строки |
-| `scrollWidth` | — | ширина для горизонтального скролла; без неё горизонтальный скролл выключен |
+| `scrollWidth` | — | минимальная ширина таблицы; горизонтальный скролл появляется при переполнении |
+| `storageKey` | — | ключ `localStorage` для ширин колонок; без него ширины живут только в памяти |
 | `bottomOffset` | `0` | отступ снизу вне таблицы: padding страницы или внешний футер |
 | `emptyText` | `'Данные не найдены'` | текст пустого состояния |
 | `isShowFooter` | `true` | встроенный футер |
@@ -123,8 +127,27 @@ swagger-интерфейсов приводите строку к своему �
 Выходы: `rowClick`, `rowDblClick`, `pageChange`, `pageSizeChange`, `sortChange`, `aggregatesLoaded`,
 `totalChange`.
 
-Публичные методы: `reload()`, `refreshHeight()`, `goToPage(page)`, `changePageSize(size)`,
-`changeSort(sort)`.
+Публичные методы: `reload()`, `refreshHeight()`, `resetColumnWidths()`, `goToPage(page)`,
+`changePageSize(size)`, `changeSort(sort)`.
+
+### Ширины колонок
+
+Ширина меняется перетаскиванием ручки у правого края заголовка или стрелками клавиатуры
+(фокус на ручке, `←`/`→`, `Shift` — крупнее). Минимальная ширина — 60px.
+
+Если передан `storageKey`, ширины сохраняются в `localStorage` под ключом
+`registry-table-columns:<storageKey>` и восстанавливаются при следующем открытии.
+Без ключа resize работает, но не сохраняется. Сбросить ширины можно методом
+`resetColumnWidths()` — он также удаляет ключ из `localStorage`.
+
+```html
+<app-registry-table
+    [dataSource]="dataSource"
+    [columns]="columns"
+    storageKey="buy-registry" />
+```
+
+Колонку можно исключить из resize: `{ ...column, isResizable: false }`.
 
 ### Высота
 
@@ -132,7 +155,8 @@ swagger-интерфейсов приводите строку к своему �
 таблицы и высоту блока под ней (футер + слот `registryTableFooter`), вычитает `bottomOffset`.
 Ограничение задаётся как `max-height`, поэтому при малом числе строк таблица остаётся
 по содержимому, а при большом — появляется вертикальный скролл, шапка остаётся видимой.
-Горизонтальный скролл включается только через `scrollWidth`; без него он выключен.
+Горизонтальный скролл появляется только при переполнении колонок; `scrollWidth` задаёт
+минимальную ширину таблицы.
 
 ## Источники данных
 

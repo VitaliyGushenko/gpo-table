@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
-import { RegistryColumn, RegistrySort } from './registry-table.types';
+import { RegistryColumnResizeDirective } from './registry-column-resize.directive';
+import { RegistryColumn, RegistryColumnResize, RegistrySort } from './registry-table.types';
 
-/** Шапка таблицы реестра: заголовки и сортировка */
+/** Шапка таблицы реестра: заголовки, сортировка и resize колонок */
 @Component({
     selector: 'thead[app-registry-table-head]',
     standalone: true,
+    imports: [RegistryColumnResizeDirective],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <tr>
@@ -38,6 +40,14 @@ import { RegistryColumn, RegistrySort } from './registry-table.types';
                     } @else {
                         {{ column.title }}
                     }
+
+                    @if (column.isResizable !== false) {
+                        <span
+                            appRegistryColumnResize
+                            class="registry-table__resize"
+                            [attr.aria-label]="'Изменить ширину: ' + column.title"
+                            (widthChange)="onColumnResize(column, $event)"></span>
+                    }
                 </th>
             }
         </tr>
@@ -45,7 +55,35 @@ import { RegistryColumn, RegistrySort } from './registry-table.types';
     styles: [
         `
             th {
+                position: relative;
                 white-space: nowrap;
+            }
+
+            .registry-table__resize {
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 2;
+                width: 8px;
+                cursor: col-resize;
+                touch-action: none;
+            }
+
+            .registry-table__resize::after {
+                position: absolute;
+                top: 25%;
+                bottom: 25%;
+                left: 3px;
+                width: 1px;
+                background: transparent;
+                content: '';
+                transition: background-color 0.2s;
+            }
+
+            .registry-table__resize:hover::after,
+            .registry-table__resize:focus-visible::after {
+                background: #1677ff;
             }
 
             .registry-table__sort {
@@ -105,6 +143,9 @@ export class RegistryTableHeadComponent {
     /** Клик по сортируемой колонке: asc → desc → без сортировки */
     readonly sortChange = output<RegistrySort | null>();
 
+    /** Изменение ширины колонки */
+    readonly columnResize = output<RegistryColumnResize>();
+
     protected getAlign(column: RegistryColumn): string {
         return column.align ?? (column.type === 'number' ? 'right' : 'left');
     }
@@ -137,5 +178,9 @@ export class RegistryTableHeadComponent {
             return;
         }
         this.sortChange.emit(null);
+    }
+
+    protected onColumnResize(column: RegistryColumn, width: number): void {
+        this.columnResize.emit({ field: column.field, width });
     }
 }

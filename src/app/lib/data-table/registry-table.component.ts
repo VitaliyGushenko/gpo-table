@@ -9,6 +9,7 @@ import {
     inject,
     input,
     output,
+    signal,
     TemplateRef,
     untracked,
     viewChild,
@@ -16,6 +17,7 @@ import {
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 
 import { RegistryCellDirective } from './registry-cell.directive';
+import { RegistryTableColumnWidthService } from './registry-table-column-width.service';
 import { combineGridifyFilters } from './registry-table.helpers';
 import { RegistryTableBodyComponent } from './registry-table-body.component';
 import { RegistryTableFootComponent } from './registry-table-foot.component';
@@ -23,9 +25,12 @@ import { RegistryTableHeadComponent } from './registry-table-head.component';
 import { RegistryTableHeightService } from './registry-table-height.service';
 import { REGISTRY_DEFAULT_PAGE_SIZE, RegistryTableStateService } from './registry-table-state.service';
 import {
+    REGISTRY_COLUMN_MIN_WIDTH,
     RegistryAggregates,
     RegistryCellTemplate,
     RegistryColumn,
+    RegistryColumnResize,
+    RegistryColumnWidths,
     RegistryDataSource,
     RegistryFooterContext,
     RegistrySort,
@@ -37,7 +42,7 @@ import {
     standalone: true,
     imports: [NzSpinModule, RegistryTableBodyComponent, RegistryTableFootComponent, RegistryTableHeadComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    providers: [RegistryTableStateService, RegistryTableHeightService],
+    providers: [RegistryTableStateService, RegistryTableHeightService, RegistryTableColumnWidthService],
     template: `
         <!-- контент над таблицей: заголовок, кнопки, поиск -->
         <ng-content select="[registryTableHeader]" />
@@ -48,15 +53,15 @@ import {
                     <div
                         #scrollArea
                         class="ant-table-content registry-table__scroll"
-                        [style.max-height.px]="scrollMaxHeight()"
-                        [style.overflow-x]="scrollWidth() ? 'auto' : 'hidden'">
+                        [style.max-height.px]="scrollMaxHeight()">
                         <table [style.min-width]="scrollWidth()">
                             <thead
                                 class="ant-table-thead"
                                 app-registry-table-head
                                 [columns]="visibleColumns()"
                                 [sort]="state.sort()"
-                                (sortChange)="changeSort($event)"></thead>
+                                (sortChange)="changeSort($event)"
+                                (columnResize)="onColumnResize($event)"></thead>
 
                             <tbody
                                 class="ant-table-tbody"
@@ -103,8 +108,7 @@ import {
             }
 
             .registry-table__scroll {
-                overflow-y: auto;
-                overflow-x: hidden;
+                overflow: auto;
             }
 
             .registry-table__below {
@@ -140,8 +144,10 @@ export class RegistryTableComponent<
 > {
     private readonly _state = inject(RegistryTableStateService) as RegistryTableStateService<TRow, TAggregates>;
     private readonly _heightService = inject(RegistryTableHeightService);
+    private readonly _columnWidthService = inject(RegistryTableColumnWidthService);
     private readonly _scrollArea = viewChild<ElementRef<HTMLElement>>('scrollArea');
     private readonly _belowTable = viewChild<ElementRef<HTMLElement>>('belowTable');
+    private readonly _columnWidths = signal<RegistryColumnWidths>({});
 
     readonly columns = input.required<readonly RegistryColumn[]>();
     readonly dataSource = input.required<RegistryDataSource<TRow, TAggregates>>();
@@ -154,6 +160,8 @@ export class RegistryTableComponent<
     readonly rowKey = input('id');
     /** Ширина для горизонтального скролла; без неё горизонтальный скролл выключен */
     readonly scrollWidth = input<string>();
+    /** Ключ localStorage для ширин колонок; без него ширины живут только в памяти */
+    readonly storageKey = input<string>();
     /** Отступ снизу вне таблицы: padding страницы или внешний футер */
     readonly bottomOffset = input(0);
     readonly emptyText = input('Данные не найдены');
@@ -169,7 +177,16 @@ export class RegistryTableComponent<
     readonly totalChange = output<number>();
 
     protected readonly state = this._state;
-    protected readonly visibleColumns = computed(() => this.columns().filter((column) => column.isVisible !== false));
+    private readonly _tableColumns = computed(() => {
+        const widths = this._columnWidths();
+        return this.columns().map((column) => {
+            const width = widths[column.field];
+            return width ? { ...column, width: `${width}px` } : column;
+        });
+    });
+    protected readonly visibleColumns = computed(() =>
+        this._tableColumns().filter((column) => column.isVisible !== false),
+    );
     protected readonly isTableLoading = computed(() => this.state.isLoading() && this.state.hasRows());
     protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeight());
 
@@ -186,6 +203,8 @@ export class RegistryTableComponent<
     private _lastFilter: string | undefined = undefined;
     private _isInitialPageSize = true;
     private _isPageSizeChanging = false;
+    private _loadedStorageKey: string | undefined;
+    private _isStorageKeyLoaded = false;
 
     constructor() {
         // Размер страницы: при инициализации только задаём значение, при изменении входа — перезагружаем
@@ -267,6 +286,22 @@ export class RegistryTableComponent<
             { allowSignalWrites: true },
         );
 
+        // Ширины колонок: читаем сохранённые один раз на ключ
+        effect(
+            () => {
+                const storageKey = this.storageKey();
+                untracked(() => {
+                    if (this._isStorageKeyLoaded && this._loadedStorageKey === storageKey) {
+                        return;
+                    }
+                    this._isStorageKeyLoaded = true;
+                    this._loadedStorageKey = storageKey;
+                    this._columnWidths.set(this._columnWidthService.load(storageKey));
+                });
+            },
+            { allowSignalWrites: true },
+        );
+
         inject(DestroyRef).onDestroy(() => this._heightService.stop());
     }
 
@@ -278,6 +313,12 @@ export class RegistryTableComponent<
     /** Пересчитать высоту таблицы, если шапка страницы изменилась без DOM-событий */
     refreshHeight(): void {
         this._heightService.refresh();
+    }
+
+    /** Сбросить ширины колонок и удалить их из localStorage */
+    resetColumnWidths(): void {
+        this._columnWidths.set({});
+        this._columnWidthService.clear(this.storageKey());
     }
 
     /** Перейти на страницу; для своего футера или внешней панели */
@@ -329,5 +370,11 @@ export class RegistryTableComponent<
             this.pageChange.emit(this._state.page());
         }
         return this._state.reload();
+    }
+
+    protected onColumnResize(event: RegistryColumnResize): void {
+        const width = Math.max(REGISTRY_COLUMN_MIN_WIDTH, Math.round(event.width));
+        this._columnWidths.update((widths) => ({ ...widths, [event.field]: width }));
+        this._columnWidthService.save(this.storageKey(), this._columnWidths());
     }
 }

@@ -65,6 +65,7 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
             [filter]="filter()"
             [pageSize]="10"
             [bottomOffset]="16"
+            [storageKey]="'registry-table-demo'"
             [aggregatesTemplate]="aggregatesTemplate"
             (rowClick)="onRowClick($event)"
             (rowDblClick)="onRowDblClick($event)">
@@ -90,6 +91,7 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
                         Только активные
                     </label>
                     <button nz-button (click)="reload()">Обновить</button>
+                    <button nz-button (click)="resetWidths()">Сбросить ширины</button>
                     <button nz-button [nzDanger]="fail()" (click)="toggleFail()">
                         {{ fail() ? 'Скрыть ошибку' : 'Показать ошибку' }}
                     </button>
@@ -261,6 +263,10 @@ export class RegistryTableDemoComponent {
 
     reload(): void {
         void this._table().reload();
+    }
+
+    resetWidths(): void {
+        this._table().resetColumnWidths();
     }
 
     toggleFail(): void {

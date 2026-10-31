@@ -256,8 +256,7 @@ new ColumnFiltered(
 - воронки/фильтры в шапке колонок — нет; расширенный поиск живёт в drawer'е;
 - CRUD, колонка действий, модалки — шаблонная колонка + компоненты страницы;
 - карточки, переключатель режимов, дерево;
-- настройки видимости/порядка колонок и сохранение раскладки в `localStorage`;
-- изменение ширины колонок мышью;
+- настройки видимости/порядка колонок; ширины колонок сохраняются;
 - виртуальный скролл;
 - выделение строк, чекбоксы, раскрытие строк;
 - подсветка латинских символов;
@@ -306,6 +305,8 @@ src/app/lib/data-table/
 ├─ registry-table-foot.component.ts  // app-registry-table-foot
 ├─ registry-table-state.service.ts   // RegistryTableStateService — сигналы и загрузка
 ├─ registry-table-height.service.ts  // RegistryTableHeightService — высота до низа окна
+├─ registry-column-resize.directive.ts // ручка изменения ширины колонки
+├─ registry-table-column-width.service.ts // сохранение ширин в localStorage
 ├─ registry-table.types.ts           // RegistryColumn, RegistryQuery, RegistryPage, RegistryDataSource
 ├─ registry-table.helpers.ts         // readRegistryValue, getErrorMessage, combineGridifyFilters
 ├─ registry-search-fields.ts         // buildRegistrySearchFields — поля поиска из колонок
@@ -395,6 +396,18 @@ export interface RegistrySort {
     readonly direction: 'asc' | 'desc';
 }
 
+/** Минимальная ширина колонки при изменении размера */
+export const REGISTRY_COLUMN_MIN_WIDTH = 60;
+
+/** Ширины колонок, сохранённые по полю строки */
+export type RegistryColumnWidths = Readonly<Record<string, number>>;
+
+/** Изменение ширины колонки */
+export interface RegistryColumnResize {
+    readonly field: string;
+    readonly width: number;
+}
+
 /** Вид поля расширенного поиска */
 export type RegistrySearchKind =
     | 'contains'
@@ -453,6 +466,8 @@ export interface RegistryColumn<TField extends string = string> {
     readonly width?: string;
     /** Можно ли сортировать; по умолчанию false */
     readonly isSortable?: boolean;
+    /** Можно ли менять ширину; по умолчанию true */
+    readonly isResizable?: boolean;
     /** Показывать ли колонку; по умолчанию true */
     readonly isVisible?: boolean;
     /** Выравнивание; по умолчанию left, для number — right */
@@ -1099,7 +1114,8 @@ Gridify-строку. Старые классы остаются для ещё �
 | `pageSize` | `number` (150) | Начальный размер страницы |
 | `pageSizeOptions` | `readonly number[]` | Варианты размера страницы |
 | `rowKey` | `string` (`'id'`) | Поле уникального ключа строки для `track` |
-| `scrollWidth` | `string` | Ширина для горизонтального скролла; без неё горизонтальный скролл выключен |
+| `scrollWidth` | `string` | Минимальная ширина таблицы; горизонтальный скролл появляется при переполнении |
+| `storageKey` | `string` | Ключ `localStorage` для ширин колонок; без него ширины не сохраняются |
 | `bottomOffset` | `number` (`0`) | Отступ снизу вне таблицы: padding страницы или внешний футер |
 | `emptyText` | `string` (`'Данные не найдены'`) | Текст пустого состояния |
 | `isShowFooter` | `boolean` (`true`) | Показывать встроенный футер (итоги + пагинация) |
@@ -1124,6 +1140,8 @@ Gridify-строку. Старые классы остаются для ещё �
 reload(): Promise<void>;
 /** Пересчитать высоту таблицы, если шапка страницы изменилась без DOM-событий */
 refreshHeight(): void;
+/** Сбросить ширины колонок и удалить их из localStorage */
+resetColumnWidths(): void;
 /** Перейти на страницу; для своего футера или внешней панели */
 goToPage(page: number): Promise<void>;
 /** Сменить размер страницы; для своего футера или внешней панели */
@@ -1314,6 +1332,14 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
                 </button>
             } @else {
                 {{ column.title }}
+            }
+
+            @if (column.isResizable !== false) {
+                <span
+                    appRegistryColumnResize
+                    class="registry-table__resize"
+                    [attr.aria-label]="'Изменить ширину: ' + column.title"
+                    (widthChange)="onColumnResize(column, $event)"></span>
             }
         </th>
     }
@@ -1642,7 +1668,24 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 - футер и контент под таблицей измеряются, поэтому пагинация и примечания не перекрывают таблицу;
 - `bottomOffset` учитывает padding страницы и внешний футер за пределами компонента;
 - минимальная высота — 200px: на низком экране страница проскроллится, таблица не схлопнется;
-- горизонтальный скролл включается только входом `scrollWidth`, иначе `overflow-x: hidden`.
+- горизонтальный скролл появляется только при переполнении; `scrollWidth` задаёт минимальную ширину таблицы.
+
+#### 3.8.2. Resize колонок и хранение ширин
+
+У каждой колонки, кроме `isResizable: false`, в шапке есть ручка у правого края. Перетаскивание
+меняет ширину `th` вживую, отпускание отдаёт итоговую ширину в контейнер. С клавиатуры работают
+`←`/`→`, с `Shift` — крупнее; минимум — 60px.
+
+- `RegistryColumnResizeDirective` — только pointer/keyboard и ширина `th`, ничего не знает
+  о `localStorage`;
+- контейнер хранит `signal<RegistryColumnWidths>` и строит эффективные колонки:
+  сохранённая ширина перекрывает `column.width`;
+- `RegistryTableColumnWidthService` читает и пишет ключ
+  `registry-table-columns:<storageKey>`; битые, нечисловые и слишком маленькие значения
+  отбрасываются; ошибки storage не ломают таблицу;
+- без `storageKey` resize работает, но ширины живут только в памяти;
+- `resetColumnWidths()` очищает ширины и удаляет ключ;
+- ширина хранится по `field`, поэтому поля колонок должны быть уникальны.
 
 ### 3.9. Директива шаблонных ячеек
 
@@ -2390,7 +2433,7 @@ async onSaved(): Promise<void> {
 | `[loading]` | нет; `isLoading` внутри |
 | `[totalCount]`, `[pageIndex]`, `[pageSize]` | нет; состояние внутри |
 | `[columns]` + `ColumnFiltered` | `[columns]` + `RegistryColumn` |
-| `[titleTableName]` + настройки колонок | нет; раскладка колонок не сохраняется |
+| `[titleTableName]` + настройки колонок | `storageKey` — сохранение только ширин; видимость/порядок не в v1 |
 | `(pageIndexChange)`, `(pageSizeChange)` | `(pageChange)`, `(pageSizeChange)`, `(sortChange)` — опционально для аналитики |
 | `(sortColumnChange)` | `(sortChange)`; таблица уже применила сортировку |
 | `(clickedTd)` | `(rowClick)` |
@@ -2443,6 +2486,7 @@ async onSaved(): Promise<void> {
 
 - пагинацию: номер, размер, быстрый переход;
 - сортировку по колонке (asc → desc → без сортировки);
+- ширины колонок с сохранением в `localStorage` по `storageKey`;
 - состояния загрузки, пустоты и ошибки;
 - форматирование чисел и дат проектными средствами (`LOCALE_ID`);
 - шаблоны ячеек — единственный способ сделать ссылку, кнопку, статус, чекбокс и т.п.;
@@ -2455,7 +2499,7 @@ async onSaved(): Promise<void> {
 
 - CRUD и колонку действий;
 - воронки/фильтры в шапке колонок (расширенный поиск — отдельный drawer);
-- настройки видимости/порядка/ширины колонок и `localStorage`;
+- настройки видимости/порядка колонок и `localStorage` (ширины колонок уже сохраняются);
 - карточки, переключатель режимов, дерево;
 - виртуальный скролл;
 - подсветку латинских символов;
@@ -2467,7 +2511,7 @@ async onSaved(): Promise<void> {
 
 - `boolean`, `enum`, `status` как отдельные типы, если шаблон повторится 3+ раза;
 - воронка/фильтр в шапке колонки (поверх расширенного поиска);
-- изменение ширины и видимость колонок с сохранением в `localStorage`;
+- видимость и порядок колонок с сохранением в `localStorage`;
 - выделение строк и массовые действия;
 - виртуальный скролл для больших страниц;
 - встроенный экспорт/печать.
@@ -2495,7 +2539,7 @@ async onSaved(): Promise<void> {
 |---|---|
 | Проекция компонентов в `nz-table` (`thead`/`tbody`/`tr`) поведёт себя иначе, чем инлайн-разметка | Первый прототип — до пилота: шапка + 2 строки + сортировка. При проблеме — нативная `<table>` с классами `ant-table` и теми же компонентами |
 | Экспорт/печать завязаны на `ColumnFiltered` (`ExportTable`, `print-table.service`) | В v1 экспорт не входит; на мигрируемых страницах либо оставить старую таблицу до адаптации экспорта, либо описать колонки для `ExportTable` отдельно |
-| Пользователи привыкли к настройкам колонок и `localStorage` | На пилоте — без сохранения; если требование подтвердится, добавить в страницу/таблицу отдельным шагом |
+| Пользователи привыкли к настройкам колонок и `localStorage` | Ширины сохраняются по `storageKey`; видимость и порядок колонок — отдельным шагом |
 | Контент над/под таблицей остаётся у страницы | Это осознанно: `registryTableHeader`/`registryTableFooter` дают место для любых кнопок и текстов, но таблица не обрастает их логикой |
 | `filter` приходит слишком часто | Дебаунс/применение по кнопке — в форме поиска; таблица делает запрос на каждое новое значение |
 | Автопоиск тянет лишние/технические поля | `id` и `template` исключены по умолчанию; `search: false`; явный `search.kind` включает поле обратно |
@@ -2535,6 +2579,7 @@ async onSaved(): Promise<void> {
 | Разбиение | `head` / `body` / `row` / `foot` | Маленькие OnPush-компоненты; строку можно менять, не трогая таблицу |
 | Состояние | `signal`/`computed`, сервис на компонент | Нет утечки между таблицами; нет RxJS-подписок и ручной перерисовки |
 | Высота | `max-height` от `RegistryTableHeightService` | Таблица прижимается к низу окна, но при малом числе строк не растягивается; без DOM-селекторов и `setTimeout` |
+| Ширины колонок | `RegistryColumnResizeDirective` + `RegistryTableColumnWidthService` | Resize остаётся в шапке, сохранение — отдельным сервисом; ключ `storageKey` не даёт таблицам перетирать ширины друг друга |
 | Фильтры колонок | Воронки в шапке — не в v1; расширенный поиск — отдельная интеграция | Самый тяжёлый кусок `gpo-lib` — воронки; поиск в drawer'е проще и не ломает шапку |
 | Поля расширенного поиска | Автоматически из колонок + `column.search` | Не перечислять все поля: только исключения (`search: false`) и справочники |
 | Карточки, настройки, CRUD | Не в v1 | Каждая функция удваивает разметку и состояние; для них есть отдельные компоненты/страницы |
