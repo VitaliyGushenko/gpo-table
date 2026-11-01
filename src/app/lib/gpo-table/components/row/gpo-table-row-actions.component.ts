@@ -27,7 +27,7 @@ import { GpoTableRowAction, GPO_TABLE_ACTIONS, isGpoTableEditAllowed } from '../
                 aria-label="Действия"
                 title="Действия"
                 (click)="$event.stopPropagation()">
-                ⋯
+                ⋮
             </button>
 
             <nz-dropdown-menu #menu="nzDropdownMenu">

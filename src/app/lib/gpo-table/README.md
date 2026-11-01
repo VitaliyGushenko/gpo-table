@@ -11,7 +11,7 @@
 | `components/head/gpo-table-head.component.ts` | шапка `thead[gpo-table-head]`, сортировка |
 | `components/body/gpo-table-body.component.ts` | тело `tbody[gpo-table-body]`, состояния |
 | `components/row/gpo-table-row.component.ts` | строка `tr[gpo-table-row]`, ячейки |
-| `components/row/gpo-table-row-actions.component.ts` | меню «⋯»: редактировать/удалить |
+| `components/row/gpo-table-row-actions.component.ts` | меню «⋮»: редактировать/удалить |
 | `components/foot/gpo-table-foot.component.ts` | футер `gpo-table-foot`, итоги и пагинация |
 | `services/gpo-table-state.service.ts` | сигналы запроса, строк, агрегатов и ошибок |
 | `services/gpo-table-height.service.ts` | высота области таблицы до низа окна |
@@ -139,7 +139,7 @@ swagger-интерфейсов приводите строку к своему �
 
 ### Действия таблицы и строки
 
-Первая колонка с кнопкой «⋯» и кнопка добавления над таблицей появляются, если страница
+Первая колонка с кнопкой «⋮» и кнопка добавления над таблицей появляются, если страница
 провайдит сервис действий под токеном `GPO_TABLE_ACTIONS`. Входов для этого у таблицы нет —
 один сервис можно расширять новыми флагами и методами.
 

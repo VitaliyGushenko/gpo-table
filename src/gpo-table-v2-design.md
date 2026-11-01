@@ -307,7 +307,7 @@ src/app/lib/gpo-table/
 │  ├─ head/gpo-table-head.component.ts // thead[gpo-table-head]
 │  ├─ body/gpo-table-body.component.ts // tbody[gpo-table-body]
 │  ├─ row/gpo-table-row.component.ts  // tr[gpo-table-row]
-│  ├─ row/gpo-table-row-actions.component.ts // меню «⋯»
+│  ├─ row/gpo-table-row-actions.component.ts // меню «⋮»
 │  └─ foot/gpo-table-foot.component.ts // gpo-table-foot
 ├─ directives/
 │  ├─ gpo-table-cell.directive.ts    // ng-template[gpoTableCell]
@@ -1726,7 +1726,7 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 #### 3.8.3. Действия таблицы и строки
 
 Таблица не получает действия через входы. Страница провайдит сервис под токеном
-`GPO_TABLE_ACTIONS`; таблица инжектит его опционально, строит первую колонку «⋯» и кнопку
+`GPO_TABLE_ACTIONS`; таблица инжектит его опционально, строит первую колонку «⋮» и кнопку
 добавления над таблицей.
 
 ```ts
