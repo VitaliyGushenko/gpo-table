@@ -44,6 +44,18 @@ import {
  */
 const EFFECT_OPTIONS = Number(VERSION.major) < 19 ? { allowSignalWrites: true } : undefined;
 
+/** Минимальная ширина авто-колонки, чтобы она не схлопывалась в ноль */
+const AUTO_COLUMN_MIN_WIDTH = 120;
+
+/** Ширина колонки действий */
+const ACTIONS_COLUMN_WIDTH = 64;
+
+/** Ширина колонки в px; для auto, rem и процентов — минимальная авто-ширина */
+function getColumnWidthPx(width: string | undefined): number {
+    const match = /^(\d+(?:\.\d+)?)px$/.exec(width?.trim() ?? '');
+    return match ? Number(match[1]) : AUTO_COLUMN_MIN_WIDTH;
+}
+
 /** Таблица реестра: сама грузит страницы через dataSource и показывает строки */
 @Component({
     selector: 'gpo-table',
@@ -62,7 +74,7 @@ const EFFECT_OPTIONS = Number(VERSION.major) < 19 ? { allowSignalWrites: true } 
                         #scrollArea
                         class="ant-table-content gpo-table__scroll"
                         [style.max-height.px]="scrollMaxHeight()">
-                        <table [style.min-width]="scrollWidth()">
+                        <table [style.min-width]="tableMinWidth()">
                             <thead
                                 class="ant-table-thead"
                                 gpo-table-head
@@ -209,6 +221,19 @@ export class GpoTableComponent<
     );
     protected readonly isTableLoading = computed(() => this.state.isLoading() && this.state.hasRows());
     protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeight());
+    protected readonly tableMinWidth = computed(() => {
+        const scrollWidth = this.scrollWidth();
+        if (scrollWidth) {
+            return scrollWidth;
+        }
+
+        const columnsWidth = this.visibleColumns().reduce(
+            (sum, column) => sum + getColumnWidthPx(column.width),
+            0,
+        );
+        const actionsWidth = this.hasActions() ? ACTIONS_COLUMN_WIDTH : 0;
+        return `${columnsWidth + actionsWidth}px`;
+    });
 
     private readonly _cellTemplates = contentChildren(GpoTableCellDirective);
     protected readonly templatesByField = computed(() => {

@@ -78,7 +78,7 @@ export interface GpoTableColumn<TField extends string = string> {
     readonly field: TField;
     /** Тип ячейки; по умолчанию text */
     readonly type?: GpoTableColumnType;
-    /** Ширина в любых CSS-единицах; по умолчанию — auto */
+    /** Ширина в любых CSS-единицах; по умолчанию — auto, но в минимальной ширине таблицы учитывается как 120px */
     readonly width?: string;
     /** Можно ли сортировать; по умолчанию false */
     readonly isSortable?: boolean;

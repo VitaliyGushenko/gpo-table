@@ -208,6 +208,15 @@ describe('GpoTableComponent', () => {
         expect(scroll.style.maxHeight).not.toBe('');
     });
 
+    it('задаёт минимальную ширину таблицы, чтобы авто-колонки не схлопывались', async () => {
+        await configure(HostComponent);
+        const fixture = TestBed.createComponent(HostComponent);
+        await render(fixture);
+
+        const table = fixture.nativeElement.querySelector('table') as HTMLTableElement;
+        expect(table.style.minWidth).not.toBe('');
+    });
+
     it('сортирует строки по клику на заголовок', async () => {
         await configure(HostComponent);
         const fixture = TestBed.createComponent(HostComponent);
