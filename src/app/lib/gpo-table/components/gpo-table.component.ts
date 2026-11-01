@@ -12,6 +12,7 @@ import {
     signal,
     TemplateRef,
     untracked,
+    VERSION,
     viewChild,
 } from '@angular/core';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
@@ -36,6 +37,12 @@ import {
     GpoTableFooterContext,
     GpoTableSort,
 } from '../core/gpo-table.types';
+
+/**
+ * Angular 18 требует allowSignalWrites для записи сигналов в effect.
+ * Angular 19+ разрешает запись всегда и помечает флаг как deprecated.
+ */
+const EFFECT_OPTIONS = Number(VERSION.major) < 19 ? { allowSignalWrites: true } : undefined;
 
 /** Таблица реестра: сама грузит страницы через dataSource и показывает строки */
 @Component({
@@ -237,7 +244,7 @@ export class GpoTableComponent<
                     void this._state.reload();
                 });
             },
-            { allowSignalWrites: true },
+            EFFECT_OPTIONS,
         );
 
         // Источник, базовый фильтр и фильтр расширенного поиска
@@ -268,11 +275,11 @@ export class GpoTableComponent<
                     void this._state.reloadAll();
                 });
             },
-            { allowSignalWrites: true },
+            EFFECT_OPTIONS,
         );
 
         // Отдать наружу итоги и агрегаты для своих header/footer-панелей
-        effect(() => this.totalChange.emit(this._state.total()), { allowSignalWrites: true });
+        effect(() => this.totalChange.emit(this._state.total()), EFFECT_OPTIONS);
         effect(
             () => {
                 const aggregates = this._state.aggregates();
@@ -280,7 +287,7 @@ export class GpoTableComponent<
                     this.aggregatesLoaded.emit(aggregates);
                 }
             },
-            { allowSignalWrites: true },
+            EFFECT_OPTIONS,
         );
 
         // Высота до низа окна: шапка над таблицей и блок под ней учитываются измерением
@@ -296,7 +303,7 @@ export class GpoTableComponent<
                     }
                 });
             },
-            { allowSignalWrites: true },
+            EFFECT_OPTIONS,
         );
 
         // Ширины колонок: читаем сохранённые один раз на ключ
@@ -312,7 +319,7 @@ export class GpoTableComponent<
                     this._columnWidths.set(this._columnWidthService.load(storageKey));
                 });
             },
-            { allowSignalWrites: true },
+            EFFECT_OPTIONS,
         );
 
         inject(DestroyRef).onDestroy(() => this._heightService.stop());
