@@ -1,5 +1,5 @@
 import { GpoTableQuery } from '../core/gpo-table.types';
-import { staticGridifyDataSource } from './static-gridify-data-source';
+import { staticGridifyDataSource } from '../adapters/static-gridify-data-source';
 
 interface Row {
     id: number;

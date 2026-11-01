@@ -7,7 +7,7 @@ import { GpoTableAggregatesDirective } from '../directives/gpo-table-aggregates.
 import { GpoTableCellDirective } from '../directives/gpo-table-cell.directive';
 import { GPO_TABLE_ACTIONS, GpoTableActions } from '../core/gpo-table-actions';
 import { GPO_TABLE_CONFIG, GpoTableConfig } from '../core/gpo-table-config';
-import { GpoTableComponent } from './gpo-table.component';
+import { GpoTableComponent } from '../components/gpo-table.component';
 import { GpoTableColumn, GpoTableDataSource, GpoTableQuery } from '../core/gpo-table.types';
 
 interface Row {

@@ -1,4 +1,4 @@
-import { calculateGpoTableMaxHeight, MIN_GPO_TABLE_HEIGHT } from './gpo-table-height.service';
+import { calculateGpoTableMaxHeight, MIN_GPO_TABLE_HEIGHT } from '../services/gpo-table-height.service';
 
 describe('calculateGpoTableMaxHeight', () => {
     it('вычитает верх таблицы, блок под ней и отступ страницы', () => {

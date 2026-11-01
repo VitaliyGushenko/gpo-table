@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { GpoTableColumnResizeDirective } from './gpo-table-column-resize.directive';
+import { GpoTableColumnResizeDirective } from '../directives/gpo-table-column-resize.directive';
 
 @Component({
     standalone: true,

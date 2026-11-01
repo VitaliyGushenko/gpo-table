@@ -1,4 +1,4 @@
-import { GPO_TABLE_DEFAULT_PAGE_SIZE, GpoTableStateService } from './gpo-table-state.service';
+import { GPO_TABLE_DEFAULT_PAGE_SIZE, GpoTableStateService } from '../services/gpo-table-state.service';
 import { GpoTableDataSource, GpoTablePage, GpoTableQuery } from '../core/gpo-table.types';
 
 interface Row {

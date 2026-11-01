@@ -1,5 +1,5 @@
-import { combineGridifyFilters, formatGpoTableValue, getErrorMessage, readGpoTableValue } from './gpo-table.helpers';
-import { GpoTableColumn } from './gpo-table.types';
+import { combineGridifyFilters, formatGpoTableValue, getErrorMessage, readGpoTableValue } from '../core/gpo-table.helpers';
+import { GpoTableColumn } from '../core/gpo-table.types';
 
 function column(patch: Partial<GpoTableColumn> = {}): GpoTableColumn {
     return { title: 'Поле', field: 'value', ...patch };

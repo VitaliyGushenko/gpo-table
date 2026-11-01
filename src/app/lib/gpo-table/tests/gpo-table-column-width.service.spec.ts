@@ -1,4 +1,4 @@
-import { GpoTableColumnWidthService } from './gpo-table-column-width.service';
+import { GpoTableColumnWidthService } from '../services/gpo-table-column-width.service';
 
 describe('GpoTableColumnWidthService', () => {
     const service = new GpoTableColumnWidthService();

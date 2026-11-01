@@ -1,4 +1,4 @@
-import { buildGpoTableSearchFields } from './gpo-table-search-fields';
+import { buildGpoTableSearchFields } from '../search/gpo-table-search-fields';
 import { GpoTableColumn } from '../core/gpo-table.types';
 
 function columns(): GpoTableColumn[] {
