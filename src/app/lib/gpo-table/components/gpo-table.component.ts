@@ -153,7 +153,7 @@ function getColumnWidthPx(width: string | undefined): number {
 
             .gpo-table__header {
                 display: flex;
-                align-items: flex-end;
+                align-items: flex-start;
                 gap: 12px;
             }
 
@@ -247,7 +247,7 @@ export class GpoTableComponent<
         if (!isGpoTableEditAllowed(actions)) {
             return false;
         }
-        return !!actions?.onEdit || !!actions?.onRemove;
+        return !!actions?.onEdit || !!actions?.onRemove || !!actions?.customActions?.length;
     });
     protected readonly canAdd = computed(
         () => isGpoTableEditAllowed(this._actions) && !!this._actions?.onAdd,

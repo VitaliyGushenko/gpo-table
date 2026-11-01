@@ -1,5 +1,15 @@
 import { InjectionToken } from '@angular/core';
 
+/** Дополнительный пункт меню действий строки */
+export interface GpoTableRowAction<TRow = Record<string, unknown>> {
+    /** Имя иконки ng-zorro, например `copy` */
+    readonly icon: string;
+    /** Текст пункта меню */
+    readonly label: string;
+    /** Обработчик действия; получает строку */
+    readonly onClick: (row: TRow) => void | Promise<void>;
+}
+
 /**
  * Действия таблицы реестра.
  * Страница провайдит реализацию под `GPO_TABLE_ACTIONS`; таблица строит по ней
@@ -13,6 +23,8 @@ export interface GpoTableActions<TRow = Record<string, unknown>> {
     readonly isEdit: boolean | (() => boolean);
     /** Подпись кнопки добавления; по умолчанию «Добавить» */
     readonly addLabel?: string;
+    /** Дополнительные пункты меню строки: иконка, текст и обработчик */
+    readonly customActions?: readonly GpoTableRowAction<TRow>[];
     onAdd?(): void | Promise<void>;
     onEdit?(row: TRow): void | Promise<void>;
     onRemove?(row: TRow): void | Promise<void>;

@@ -105,6 +105,7 @@ const actionSpies = {
 };
 const canEditSignal = signal(true);
 
+const customActionSpy = jasmine.createSpy('customAction');
 const addSpy = jasmine.createSpy('onAdd');
 const addCanEditSignal = signal(true);
 const addLabelSignal = signal<string | undefined>('Создать');
@@ -176,6 +177,31 @@ class AddActionsHostComponent {
         {
             provide: GPO_TABLE_ACTIONS,
             useValue: {
+                isEdit: true,
+                customActions: [
+                    {
+                        icon: 'copy',
+                        label: 'Дублировать',
+                        onClick: customActionSpy,
+                    },
+                ],
+            } satisfies GpoTableActions<Row>,
+        },
+    ],
+    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+})
+class CustomActionsHostComponent {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
+}
+
+@Component({
+    standalone: true,
+    imports: [GpoTableComponent],
+    providers: [
+        {
+            provide: GPO_TABLE_ACTIONS,
+            useValue: {
                 isEdit: canEditSignal,
                 onEdit: actionSpies.onEdit,
                 onRemove: actionSpies.onRemove,
@@ -207,6 +233,7 @@ describe('GpoTableComponent', () => {
         localStorage.clear();
         actionSpies.onEdit.calls.reset();
         actionSpies.onRemove.calls.reset();
+        customActionSpy.calls.reset();
         canEditSignal.set(true);
         addSpy.calls.reset();
         addCanEditSignal.set(true);
@@ -417,12 +444,38 @@ describe('GpoTableComponent', () => {
             item.textContent?.includes('Удалить'),
         ) as HTMLElement | undefined;
         expect(removeItem).toBeDefined();
+        expect(removeItem?.classList.contains('ant-menu-item-danger')).toBeFalse();
+        expect(removeItem?.querySelector('.gpo-table__row-action-icon--danger')).not.toBeNull();
         removeItem?.click();
         fixture.detectChanges();
 
         expect(actionSpies.onRemove).toHaveBeenCalled();
         const removedRow = actionSpies.onRemove.calls.mostRecent().args[0] as Record<string, unknown>;
         expect(removedRow['id']).toBe(3);
+    });
+
+    it('показывает кастомные пункты меню строки и вызывает callback', async () => {
+        await configure(CustomActionsHostComponent);
+        const fixture = TestBed.createComponent(CustomActionsHostComponent);
+        await render(fixture);
+
+        const actionButton = fixture.nativeElement.querySelector(
+            '.gpo-table__actions-button',
+        ) as HTMLButtonElement;
+        expect(actionButton).not.toBeNull();
+        actionButton.click();
+        await render(fixture);
+
+        const customItem = Array.from(document.querySelectorAll('.ant-dropdown-menu-item')).find((item) =>
+            item.textContent?.includes('Дублировать'),
+        ) as HTMLElement | undefined;
+        expect(customItem).toBeDefined();
+        customItem?.click();
+        fixture.detectChanges();
+
+        expect(customActionSpy).toHaveBeenCalled();
+        const row = customActionSpy.calls.mostRecent().args[0] as Record<string, unknown>;
+        expect(row['id']).toBe(3);
     });
 
     it('показывает кнопку добавления с настраиваемой подписью', async () => {

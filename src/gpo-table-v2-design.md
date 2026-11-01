@@ -420,12 +420,22 @@ export interface GpoTableColumnResize {
     readonly width: number;
 }
 
+/** Дополнительный пункт меню действий строки */
+export interface GpoTableRowAction<TRow = Record<string, unknown>> {
+    /** Имя иконки ng-zorro, например `copy` */
+    readonly icon: string;
+    readonly label: string;
+    readonly onClick: (row: TRow) => void | Promise<void>;
+}
+
 /** Действия таблицы: таблица получает их из сервиса по токену */
 export interface GpoTableActions<TRow = Record<string, unknown>> {
     /** Право на изменение: boolean или сигнал/функция для динамических прав */
     readonly isEdit: boolean | (() => boolean);
     /** Подпись кнопки добавления; по умолчанию «Добавить» */
     readonly addLabel?: string;
+    /** Дополнительные пункты меню строки */
+    readonly customActions?: readonly GpoTableRowAction<TRow>[];
     onAdd?(): void | Promise<void>;
     onEdit?(row: TRow): void | Promise<void>;
     onRemove?(row: TRow): void | Promise<void>;
@@ -1724,6 +1734,15 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 export class ItemsActions implements GpoTableActions<ItemRow> {
     readonly isEdit = true;
     readonly addLabel = 'Добавить запись';
+    readonly customActions = [
+        {
+            icon: 'copy',
+            label: 'Дублировать',
+            onClick: (row: ItemRow) => {
+                // ...
+            },
+        },
+    ];
 
     onAdd(): void {
         // форма добавления
@@ -1750,7 +1769,13 @@ export class ItemsComponent {}
 - кнопка добавления стоит в шапке над таблицей, левее переданного контента, и показывается
   при наличии `onAdd`; её подпись берётся из `addLabel`, по умолчанию — «Добавить»;
 - «Редактировать» показывается при наличии `onEdit`, «Удалить» — при наличии `onRemove`;
-- оба метода не заданы — колонки действий нет, но кнопка добавления может остаться;
+- `customActions` добавляет пункты «иконка + текст + callback»; порядок: редактирование,
+  кастомные пункты, удаление; callback получает строку;
+- если не заданы ни `onEdit`, ни `onRemove`, ни `customActions` — колонки действий нет,
+  но кнопка добавления может остаться;
+- иконки регистрируются в приложении через `provideNzIcons`/`NZ_ICONS`: для встроенных
+  пунктов нужны `edit` и `delete`, для кастомных — их `icon`;
+- «Удалить» без `nzDanger`: текст обычный, красная только иконка;
 - подтверждение удаления и обновление данных — ответственность страницы;
   после успешного действия она вызывает `table.reload()`;
 - колонка фиксированной ширины 64px, не сортируется и не ресайзится;
