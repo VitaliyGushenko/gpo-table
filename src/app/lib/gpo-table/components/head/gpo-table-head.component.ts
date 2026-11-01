@@ -5,6 +5,7 @@ import {
     GPO_TABLE_RESIZE_CURSOR,
     GpoTableColumn,
     GpoTableColumnResize,
+    GpoTablePinnedOffsets,
     GpoTableSort,
 } from '../../core/gpo-table.types';
 
@@ -17,14 +18,27 @@ import {
     template: `
         <tr>
             @if (hasActions()) {
-                <th class="gpo-table__actions-head" aria-label="Действия"></th>
+                <th
+                    class="gpo-table__actions-head gpo-table__pinned gpo-table__pinned-left"
+                    [style.left.px]="0"
+                    aria-label="Действия"></th>
             }
 
             @for (column of columns(); track $index) {
                 <th
                     [style.width]="column.width"
                     [style.text-align]="getAlign(column)"
-                    [class]="column.cssClass ?? ''"
+                    [style.left.px]="
+                        column.fixed === 'left'
+                            ? (pinnedOffsets().get(column.field)?.left ?? null)
+                            : null
+                    "
+                    [style.right.px]="
+                        column.fixed === 'right'
+                            ? (pinnedOffsets().get(column.field)?.right ?? null)
+                            : null
+                    "
+                    [class]="getColumnClass(column)"
                     [attr.aria-sort]="getAriaSort(column)">
                     @if (column.isSortable) {
                         <button
@@ -161,6 +175,9 @@ export class GpoTableHeadComponent {
     /** Показывать первую колонку действий */
     readonly hasActions = input(false);
 
+    /** Смещения закреплённых колонок */
+    readonly pinnedOffsets = input<GpoTablePinnedOffsets>(new Map());
+
     /** Текущая сортировка */
     readonly sort = input<GpoTableSort | null>(null);
 
@@ -175,6 +192,14 @@ export class GpoTableHeadComponent {
 
     protected getAlign(column: GpoTableColumn): string {
         return column.align ?? (column.type === 'number' ? 'right' : 'left');
+    }
+
+    protected getColumnClass(column: GpoTableColumn): string {
+        const classes = [column.cssClass ?? ''];
+        if (column.fixed) {
+            classes.push('gpo-table__pinned', `gpo-table__pinned-${column.fixed}`);
+        }
+        return classes.filter(Boolean).join(' ');
     }
 
     /** Активна ли стрелка указанного направления */

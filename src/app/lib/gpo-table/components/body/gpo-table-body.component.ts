@@ -5,7 +5,11 @@ import { NzSpinModule } from 'ng-zorro-antd/spin';
 
 import { readGpoTableValue } from '../../core/gpo-table.helpers';
 import { GpoTableRowComponent } from '../row/gpo-table-row.component';
-import { GpoTableCellTemplate, GpoTableColumn } from '../../core/gpo-table.types';
+import {
+    GpoTableCellTemplate,
+    GpoTableColumn,
+    GpoTablePinnedOffsets,
+} from '../../core/gpo-table.types';
 
 /** Тело таблицы реестра: состояния загрузки/пустоты/ошибки и строки */
 @Component({
@@ -50,6 +54,7 @@ import { GpoTableCellTemplate, GpoTableColumn } from '../../core/gpo-table.types
                     [columns]="columns()"
                     [templates]="templates()"
                     [hasActions]="hasActions()"
+                    [pinnedOffsets]="pinnedOffsets()"
                     (click)="rowClick.emit(row)"
                     (dblclick)="rowDblClick.emit(row)"
                     (keydown.enter)="onRowKeydown($event, row)"></tr>
@@ -81,6 +86,7 @@ export class GpoTableBodyComponent<TRow extends object = Record<string, unknown>
     readonly error = input<string | null>(null);
     readonly emptyText = input('Данные не найдены');
     readonly hasActions = input(false);
+    readonly pinnedOffsets = input<GpoTablePinnedOffsets>(new Map());
 
     readonly rowClick = output<TRow>();
     readonly rowDblClick = output<TRow>();

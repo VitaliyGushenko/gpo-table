@@ -38,10 +38,13 @@ import {
     GPO_TABLE_COLUMN_MIN_WIDTH,
     GpoTableAggregates,
     GpoTableCellTemplate,
+    GpoTableColumn,
     GpoTableColumnResize,
     GpoTableColumnWidths,
     GpoTableDataSource,
     GpoTableFooterContext,
+    GpoTablePinnedOffset,
+    GpoTablePinnedOffsets,
     GpoTableSort,
 } from '../core/gpo-table.types';
 
@@ -61,6 +64,20 @@ const ACTIONS_COLUMN_WIDTH = 64;
 function getColumnWidthPx(width: string | undefined): number {
     const match = /^(\d+(?:\.\d+)?)px$/.exec(width?.trim() ?? '');
     return match ? Number(match[1]) : AUTO_COLUMN_MIN_WIDTH;
+}
+
+/** Сравнить смещения закреплённых колонок без лишнего обновления сигнала */
+function pinnedOffsetsEqual(a: GpoTablePinnedOffsets, b: GpoTablePinnedOffsets): boolean {
+    if (a.size !== b.size) {
+        return false;
+    }
+    for (const [field, value] of a) {
+        const other = b.get(field);
+        if (value?.left !== other?.left || value?.right !== other?.right) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /** Таблица реестра: сама грузит страницы через dataSource и показывает строки */
@@ -103,10 +120,12 @@ function getColumnWidthPx(width: string | undefined): number {
                         [style.max-height.px]="scrollMaxHeight()">
                         <table [style.min-width]="tableMinWidth()">
                             <thead
+                                #head
                                 class="ant-table-thead"
                                 gpo-table-head
                                 [columns]="visibleColumns()"
                                 [hasActions]="hasActions()"
+                                [pinnedOffsets]="pinnedOffsets()"
                                 [sort]="state.sort()"
                                 (sortChange)="changeSort($event)"
                                 (columnResize)="onColumnResize($event)"
@@ -117,6 +136,7 @@ function getColumnWidthPx(width: string | undefined): number {
                                 gpo-table-body
                                 [columns]="visibleColumns()"
                                 [hasActions]="hasActions()"
+                                [pinnedOffsets]="pinnedOffsets()"
                                 [rows]="state.rows()"
                                 [templates]="templatesByField()"
                                 [rowKey]="rowKey()"
@@ -192,6 +212,25 @@ function getColumnWidthPx(width: string | undefined): number {
                 z-index: 1;
             }
 
+            :host ::ng-deep .gpo-table__pinned {
+                position: sticky;
+                z-index: 2;
+                background: #fff;
+            }
+
+            :host ::ng-deep .ant-table-thead > tr > th.gpo-table__pinned {
+                z-index: 3;
+                background: #fafafa;
+            }
+
+            :host ::ng-deep .ant-table-tbody > tr:hover > td.gpo-table__pinned {
+                background: #fafafa;
+            }
+
+            :host ::ng-deep .ant-table-tbody > tr.ant-table-row:focus-visible > td.gpo-table__pinned {
+                background: #e6f4ff;
+            }
+
             :host ::ng-deep .ant-table-tbody > tr:not(.gpo-table__state-row) > td:not(.gpo-table__actions-cell) {
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -225,9 +264,14 @@ export class GpoTableComponent<
         | null;
     private readonly _scrollArea = viewChild<ElementRef<HTMLElement>>('scrollArea');
     private readonly _belowTable = viewChild<ElementRef<HTMLElement>>('belowTable');
+    private readonly _head = viewChild('head', { read: ElementRef });
     private readonly _columnWidths = signal<GpoTableColumnWidths>({});
     /** Ширина колонки во время перетаскивания: минимальная ширина таблицы меняется вместе с ней */
     private readonly _resizePreview = signal<GpoTableColumnResize | null>(null);
+    /** Смещения закреплённых колонок, посчитанные по фактическим ширинам ячеек */
+    private readonly _pinnedOffsets = signal<GpoTablePinnedOffsets>(new Map());
+    private _pinnedObserver: ResizeObserver | null = null;
+    private _pinnedTimer: ReturnType<typeof setTimeout> | null = null;
     private readonly _aggregatesDirective = contentChild(GpoTableAggregatesDirective);
 
     protected readonly pageSizeOptions = computed(
@@ -263,6 +307,7 @@ export class GpoTableComponent<
         () => isGpoTableEditAllowed(this._actions) && !!this._actions?.onAdd,
     );
     protected readonly addLabel = computed(() => this._actions?.addLabel?.trim() || 'Добавить');
+    protected readonly pinnedOffsets = this._pinnedOffsets.asReadonly();
     private readonly _tableColumns = computed(() => {
         const widths = this._columnWidths();
         return this._config.columns.map((column) => {
@@ -406,7 +451,27 @@ export class GpoTableComponent<
             EFFECT_OPTIONS,
         );
 
-        inject(DestroyRef).onDestroy(() => this._heightService.stop());
+        // Закреплённые колонки: смещения зависят от фактических ширин ячеек
+        effect(
+            () => {
+                const head = this._head()?.nativeElement;
+                const columns = this.visibleColumns();
+                const hasActions = this.hasActions();
+                if (!head) {
+                    return;
+                }
+                untracked(() => this._watchPinnedColumns(head, columns, hasActions));
+            },
+            EFFECT_OPTIONS,
+        );
+
+        inject(DestroyRef).onDestroy(() => {
+            this._pinnedObserver?.disconnect();
+            if (this._pinnedTimer) {
+                clearTimeout(this._pinnedTimer);
+            }
+            this._heightService.stop();
+        });
     }
 
     /** Перезагрузить строки и агрегаты (после сохранения, удаления и т.п.) */
@@ -496,5 +561,81 @@ export class GpoTableComponent<
             return;
         }
         this._resizePreview.set(event);
+    }
+
+    private _watchPinnedColumns(
+        head: HTMLElement,
+        columns: readonly GpoTableColumn[],
+        hasActions: boolean,
+    ): void {
+        this._pinnedObserver?.disconnect();
+        this._pinnedObserver = null;
+        if (this._pinnedTimer) {
+            clearTimeout(this._pinnedTimer);
+            this._pinnedTimer = null;
+        }
+
+        if (typeof ResizeObserver === 'undefined') {
+            this._measurePinnedColumns(head, columns, hasActions);
+            return;
+        }
+
+        const observer = new ResizeObserver(() =>
+            this._measurePinnedColumns(head, columns, hasActions),
+        );
+        this._pinnedObserver = observer;
+        for (const th of Array.from(head.querySelectorAll('th'))) {
+            observer.observe(th);
+        }
+        this._measurePinnedColumns(head, columns, hasActions);
+
+        // Первый замер может случиться до раскладки таблицы — повторим после неё
+        this._pinnedTimer = setTimeout(() => {
+            this._pinnedTimer = null;
+            this._measurePinnedColumns(head, columns, hasActions);
+        });
+    }
+
+    private _measurePinnedColumns(
+        head: HTMLElement,
+        columns: readonly GpoTableColumn[],
+        hasActions: boolean,
+    ): void {
+        const ths = Array.from(head.querySelectorAll<HTMLElement>('th'));
+        const dataStart = hasActions ? 1 : 0;
+        const actionsWidth = hasActions
+            ? (ths[0]?.getBoundingClientRect().width ?? ACTIONS_COLUMN_WIDTH)
+            : 0;
+        const widths = columns.map(
+            (_, index) => ths[dataStart + index]?.getBoundingClientRect().width ?? 0,
+        );
+        if (columns.some((column, index) => column.fixed && widths[index] <= 0)) {
+            return;
+        }
+
+        const offsets = new Map<string, GpoTablePinnedOffset>();
+        let left = actionsWidth;
+        for (let index = 0; index < columns.length; index++) {
+            const column = columns[index];
+            if (column.fixed !== 'left') {
+                continue;
+            }
+            offsets.set(column.field, { left });
+            left += widths[index];
+        }
+
+        let right = 0;
+        for (let index = columns.length - 1; index >= 0; index--) {
+            const column = columns[index];
+            if (column.fixed !== 'right') {
+                continue;
+            }
+            offsets.set(column.field, { ...offsets.get(column.field), right });
+            right += widths[index];
+        }
+
+        if (!pinnedOffsetsEqual(this._pinnedOffsets(), offsets)) {
+            this._pinnedOffsets.set(offsets);
+        }
     }
 }

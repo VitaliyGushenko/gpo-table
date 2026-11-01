@@ -68,7 +68,7 @@ export class OrdersTableDemoConfigService implements GpoTableConfig<OrderRow, Or
     };
 
     readonly columns: GpoTableColumn<keyof OrderRow>[] = [
-        { title: '№ заказа', field: 'number', width: '130px', isSortable: true },
+        { title: '№ заказа', field: 'number', width: '130px', isSortable: true, fixed: 'left' },
         { title: 'Клиент', field: 'customer', isSortable: true },
         { title: 'Позиций', field: 'items', type: 'number', width: '110px' },
         {
@@ -93,6 +93,7 @@ export class OrdersTableDemoConfigService implements GpoTableConfig<OrderRow, Or
             width: '140px',
             align: 'center',
             search: false,
+            fixed: 'right',
         },
     ];
 }

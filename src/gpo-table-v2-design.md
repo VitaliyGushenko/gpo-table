@@ -538,6 +538,8 @@ export interface GpoTableColumn<TField extends string = string> {
     readonly isResizable?: boolean;
     /** Показывать ли колонку; по умолчанию true */
     readonly isVisible?: boolean;
+    /** Закрепить колонку у левого или правого края при горизонтальном скролле */
+    readonly fixed?: 'left' | 'right';
     /** Выравнивание; по умолчанию left, для number — right */
     readonly align?: 'left' | 'center' | 'right';
     /** Формат даты Angular; по умолчанию dd.MM.yyyy */

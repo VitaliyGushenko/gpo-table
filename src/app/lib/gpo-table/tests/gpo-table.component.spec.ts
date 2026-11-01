@@ -46,6 +46,20 @@ class HostComponent implements GpoTableConfig<Row> {
 @Component({
     standalone: true,
     imports: [GpoTableComponent],
+    providers: [{ provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => PinnedHostComponent) }],
+    template: `<gpo-table />`,
+})
+class PinnedHostComponent implements GpoTableConfig<Row> {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: GpoTableColumn[] = [
+        { title: 'Наименование', field: 'name', fixed: 'left' },
+        { title: 'ID', field: 'id', type: 'number', fixed: 'right' },
+    ];
+}
+
+@Component({
+    standalone: true,
+    imports: [GpoTableComponent],
     providers: [{ provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => ErrorHostComponent) }],
     template: `<gpo-table />`,
 })
@@ -278,6 +292,10 @@ async function render(fixture: ComponentFixture<unknown>): Promise<void> {
     fixture.detectChanges();
 }
 
+async function waitForFrame(): Promise<void> {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 async function configure(component: Type<unknown>): Promise<void> {
     await TestBed.configureTestingModule({
         imports: [component],
@@ -327,6 +345,29 @@ describe('GpoTableComponent', () => {
 
         const table = fixture.nativeElement.querySelector('table') as HTMLTableElement;
         expect(table.style.minWidth).not.toBe('');
+    });
+
+    it('закрепляет колонки слева и справа', async () => {
+        await configure(PinnedHostComponent);
+        const fixture = TestBed.createComponent(PinnedHostComponent);
+        await render(fixture);
+
+        const headers = fixture.nativeElement.querySelectorAll(
+            'thead th',
+        ) as NodeListOf<HTMLElement>;
+        const cells = fixture.nativeElement.querySelectorAll(
+            'tbody tr.ant-table-row:first-child td',
+        ) as NodeListOf<HTMLElement>;
+
+        expect(headers[0].classList.contains('gpo-table__pinned-left')).toBeTrue();
+        expect(headers[0].style.left).toBe('0px');
+        expect(headers[1].classList.contains('gpo-table__pinned-right')).toBeTrue();
+        expect(headers[1].style.right).toBe('0px');
+
+        expect(cells[0].classList.contains('gpo-table__pinned-left')).toBeTrue();
+        expect(cells[0].style.left).toBe('0px');
+        expect(cells[1].classList.contains('gpo-table__pinned-right')).toBeTrue();
+        expect(cells[1].style.right).toBe('0px');
     });
 
     it('сортирует строки по клику на заголовок', async () => {
@@ -450,6 +491,7 @@ describe('GpoTableComponent', () => {
 
         handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 100, button: 0 }));
         document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 160 }));
+        await waitForFrame();
         await render(fixture);
         const widthDuringDrag = table.style.minWidth;
 
@@ -467,6 +509,10 @@ describe('GpoTableComponent', () => {
 
         const actionsHeader = fixture.nativeElement.querySelector('thead th') as HTMLElement;
         expect(actionsHeader.getAttribute('aria-label')).toBe('Действия');
+        expect(actionsHeader.classList.contains('gpo-table__pinned-left')).toBeTrue();
+
+        const actionsCell = fixture.nativeElement.querySelector('tbody tr td') as HTMLElement;
+        expect(actionsCell.classList.contains('gpo-table__pinned-left')).toBeTrue();
 
         const actionButton = fixture.nativeElement.querySelector(
             'tbody tr td .gpo-table__actions-button',

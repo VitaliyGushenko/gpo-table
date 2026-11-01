@@ -102,7 +102,7 @@ export class EmployeesTableDemoConfigService implements GpoTableConfig<EmployeeR
     };
 
     readonly columns: GpoTableColumn<keyof EmployeeRow>[] = [
-        { title: 'ФИО', field: 'fullName', isSortable: true },
+        { title: 'ФИО', field: 'fullName', isSortable: true, fixed: 'left' },
         {
             title: 'Должность',
             field: 'position',
@@ -146,6 +146,7 @@ export class EmployeesTableDemoConfigService implements GpoTableConfig<EmployeeR
             width: '140px',
             align: 'center',
             search: false,
+            fixed: 'right',
         },
     ];
 }

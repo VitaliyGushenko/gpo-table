@@ -77,11 +77,12 @@ export class GpoTableDemoConfigService implements GpoTableConfig<DemoRow, DemoAg
     };
 
     readonly columns: GpoTableColumn<keyof DemoRow>[] = [
-        { title: 'Наименование', field: 'name', isSortable: true },
+        { title: 'Наименование', field: 'name', isSortable: true, fixed: 'left' },
         {
             title: 'Категория',
             field: 'category',
             width: '170px',
+            fixed: 'left',
             search: {
                 kind: 'select',
                 dictionary: DEMO_CATEGORIES.map((category) => ({
@@ -127,6 +128,7 @@ export class GpoTableDemoConfigService implements GpoTableConfig<DemoRow, DemoAg
             width: '110px',
             align: 'center',
             search: false,
+            fixed: 'right',
         },
     ];
 }
