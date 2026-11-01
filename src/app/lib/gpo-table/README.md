@@ -1,8 +1,8 @@
 # gpo-table — таблица реестра на сигналах
 
 Переносимая таблица реестра. Страница провайдит настройки под токеном `GPO_TABLE_CONFIG`
-(колонки, источник данных и параметры), а сам компонент остаётся чистым:
-`<gpo-table />` сломает только контент-слоты и события.
+(колонки, источник данных и параметры), а сам компонент остаётся чистым: в разметке —
+только `<gpo-table />`, контент-слоты и события.
 
 ## Что внутри
 
@@ -208,6 +208,7 @@ swagger-интерфейсов приводите строку к своему �
 ```ts
 import {
     GPO_TABLE_ACTIONS,
+    GPO_TABLE_CONFIG,
     GpoTableActions,
 } from 'src/app/lib/gpo-table';
 
@@ -242,6 +243,7 @@ export class ItemsActions implements GpoTableActions<ItemRow> {
 
 @Component({
     providers: [
+        // ItemsTableConfig — конфиг-сервис из примера «Минимальная страница»
         ItemsTableConfig,
         { provide: GPO_TABLE_CONFIG, useExisting: ItemsTableConfig },
         ItemsActions,
@@ -296,6 +298,8 @@ export class ItemsComponent {}
 
 ## Источники данных
 
+Эти поля кладутся в конфиг-сервис страницы (см. «Минимальная страница»).
+
 Сгенерированный swagger-клиент:
 
 ```ts
@@ -344,7 +348,8 @@ readonly dataSource: GpoTableDataSource<ItemRow> = {
 (`buildGpoTableSearchFields`) и принимает готовую Gridify-строку через `searchFilter`
 в конфиге.
 
-## Чего нет в v1
+## Чего нет
 
-Карточки, настройки колонок и `localStorage`, CRUD, фильтры-воронки в шапке, виртуальный скролл,
-выделение строк, подсветка латинских символов, встроенный экспорт.
+Карточки, настройки видимости и порядка колонок, CRUD, фильтры-воронки в шапке, виртуальный
+скролл, выделение строк, подсветка латинских символов, встроенный экспорт. Ширины колонок
+при этом сохраняются в `localStorage` при заданном `storageKey`.
