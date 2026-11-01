@@ -15,6 +15,7 @@ import {
     VERSION,
     viewChild,
 } from '@angular/core';
+import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 
 import { GpoTableCellDirective } from '../directives/gpo-table-cell.directive';
@@ -60,12 +61,32 @@ function getColumnWidthPx(width: string | undefined): number {
 @Component({
     selector: 'gpo-table',
     standalone: true,
-    imports: [NzSpinModule, GpoTableBodyComponent, GpoTableFootComponent, GpoTableHeadComponent],
+    imports: [
+        NzButtonModule,
+        NzSpinModule,
+        GpoTableBodyComponent,
+        GpoTableFootComponent,
+        GpoTableHeadComponent,
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     providers: [GpoTableStateService, GpoTableHeightService, GpoTableColumnWidthService],
     template: `
-        <!-- контент над таблицей: заголовок, кнопки, поиск -->
-        <ng-content select="[gpoTableHeader]" />
+        <!-- шапка над таблицей: кнопка добавления и контент страницы -->
+        <div class="gpo-table__header">
+            @if (canAdd()) {
+                <button
+                    nz-button
+                    nzType="primary"
+                    class="gpo-table__add"
+                    (click)="onAdd()">
+                    {{ addLabel() }}
+                </button>
+            }
+
+            <div class="gpo-table__header-content">
+                <ng-content select="[gpoTableHeader]" />
+            </div>
+        </div>
 
         <nz-spin [nzSpinning]="isTableLoading()">
             <div class="ant-table">
@@ -128,6 +149,22 @@ function getColumnWidthPx(width: string | undefined): number {
         `
             :host {
                 display: block;
+            }
+
+            .gpo-table__header {
+                display: flex;
+                align-items: flex-end;
+                gap: 12px;
+            }
+
+            .gpo-table__header-content {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .gpo-table__add {
+                flex: 0 0 auto;
+                margin-bottom: 12px;
             }
 
             .gpo-table__scroll {
@@ -212,6 +249,10 @@ export class GpoTableComponent<
         }
         return !!actions?.onEdit || !!actions?.onRemove;
     });
+    protected readonly canAdd = computed(
+        () => isGpoTableEditAllowed(this._actions) && !!this._actions?.onAdd,
+    );
+    protected readonly addLabel = computed(() => this._actions?.addLabel?.trim() || 'Добавить');
     private readonly _tableColumns = computed(() => {
         const widths = this._columnWidths();
         return this.columns().map((column) => {
@@ -420,6 +461,10 @@ export class GpoTableComponent<
             this.pageChange.emit(this._state.page());
         }
         return this._state.reload();
+    }
+
+    protected onAdd(): void {
+        void this._actions?.onAdd?.();
     }
 
     protected onColumnResize(event: GpoTableColumnResize): void {

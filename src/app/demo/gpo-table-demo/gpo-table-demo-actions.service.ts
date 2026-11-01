@@ -10,6 +10,10 @@ export class GpoTableDemoActionsService implements GpoTableActions<Record<string
     /** Последнее действие для заметки под таблицей */
     readonly lastAction = signal('Демонстрационная таблица готова к работе');
 
+    onAdd(): void {
+        this.lastAction.set('Добавление записи: форма откроется на странице');
+    }
+
     onEdit(row: Record<string, unknown>): void {
         this.lastAction.set(`Редактирование: ${row['name']}`);
     }

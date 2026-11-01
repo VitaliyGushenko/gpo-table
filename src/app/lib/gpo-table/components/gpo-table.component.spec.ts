@@ -105,6 +105,19 @@ const actionSpies = {
 };
 const canEditSignal = signal(true);
 
+const addSpy = jasmine.createSpy('onAdd');
+const addCanEditSignal = signal(true);
+const addLabelSignal = signal<string | undefined>('Создать');
+const addActions: GpoTableActions = {
+    get isEdit(): boolean {
+        return addCanEditSignal();
+    },
+    get addLabel(): string | undefined {
+        return addLabelSignal();
+    },
+    onAdd: addSpy,
+};
+
 @Component({
     standalone: true,
     imports: [GpoTableComponent],
@@ -148,6 +161,17 @@ class ActionsDisabledHostComponent {
 @Component({
     standalone: true,
     imports: [GpoTableComponent],
+    providers: [{ provide: GPO_TABLE_ACTIONS, useValue: addActions }],
+    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+})
+class AddActionsHostComponent {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
+}
+
+@Component({
+    standalone: true,
+    imports: [GpoTableComponent],
     providers: [
         {
             provide: GPO_TABLE_ACTIONS,
@@ -184,6 +208,9 @@ describe('GpoTableComponent', () => {
         actionSpies.onEdit.calls.reset();
         actionSpies.onRemove.calls.reset();
         canEditSignal.set(true);
+        addSpy.calls.reset();
+        addCanEditSignal.set(true);
+        addLabelSignal.set('Создать');
     });
 
     it('рисует шапку, строки и шаблонную ячейку внутри table', async () => {
@@ -396,6 +423,33 @@ describe('GpoTableComponent', () => {
         expect(actionSpies.onRemove).toHaveBeenCalled();
         const removedRow = actionSpies.onRemove.calls.mostRecent().args[0] as Record<string, unknown>;
         expect(removedRow['id']).toBe(3);
+    });
+
+    it('показывает кнопку добавления с настраиваемой подписью', async () => {
+        await configure(AddActionsHostComponent);
+        const fixture = TestBed.createComponent(AddActionsHostComponent);
+        await render(fixture);
+
+        const button = fixture.nativeElement.querySelector(
+            '.gpo-table__add',
+        ) as HTMLButtonElement;
+        expect(button.textContent?.trim()).toBe('Создать');
+        expect(fixture.nativeElement.querySelector('.gpo-table__actions-button')).toBeNull();
+
+        button.click();
+        expect(addSpy).toHaveBeenCalled();
+
+        addLabelSignal.set(undefined);
+        await render(fixture);
+        expect(
+            (
+                fixture.nativeElement.querySelector('.gpo-table__add') as HTMLButtonElement
+            ).textContent?.trim(),
+        ).toBe('Добавить');
+
+        addCanEditSignal.set(false);
+        await render(fixture);
+        expect(fixture.nativeElement.querySelector('.gpo-table__add')).toBeNull();
     });
 
     it('не рисует действия без права isEdit', async () => {

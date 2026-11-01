@@ -1,16 +1,19 @@
 import { InjectionToken } from '@angular/core';
 
 /**
- * Действия строки реестра.
+ * Действия таблицы реестра.
  * Страница провайдит реализацию под `GPO_TABLE_ACTIONS`; таблица строит по ней
- * первую колонку с меню действий.
+ * первую колонку с меню действий и кнопку добавления в шапке.
  */
 export interface GpoTableActions<TRow = Record<string, unknown>> {
     /**
-     * Право на редактирование таблицы: разрешает и редактирование, и удаление.
+     * Право на изменение таблицы: разрешает добавление, редактирование и удаление.
      * Можно передать boolean или функцию/сигнал для динамических прав.
      */
     readonly isEdit: boolean | (() => boolean);
+    /** Подпись кнопки добавления; по умолчанию «Добавить» */
+    readonly addLabel?: string;
+    onAdd?(): void | Promise<void>;
     onEdit?(row: TRow): void | Promise<void>;
     onRemove?(row: TRow): void | Promise<void>;
 }

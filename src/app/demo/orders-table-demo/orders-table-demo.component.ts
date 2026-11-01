@@ -1,11 +1,13 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, viewChild } from '@angular/core';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 
 import { staticGridifyDataSource } from '../../lib/gpo-table/adapters/index';
 import { GpoTableComponent } from '../../lib/gpo-table/components/gpo-table.component';
+import { GPO_TABLE_ACTIONS } from '../../lib/gpo-table/core/gpo-table-actions';
 import { GpoTableCellDirective } from '../../lib/gpo-table/directives/gpo-table-cell.directive';
 import { GpoTableColumn, GpoTableDataSource } from '../../lib/gpo-table/core/gpo-table.types';
+import { OrdersTableDemoActionsService } from './orders-table-demo-actions.service';
 
 type OrderStatus = 'new' | 'processing' | 'done';
 
@@ -59,6 +61,10 @@ const ORDER_TOTAL = ORDER_ROWS.reduce((sum, row) => sum + row.total, 0);
     standalone: true,
     host: { class: 'demo-page' },
     imports: [DecimalPipe, NzButtonModule, GpoTableCellDirective, GpoTableComponent],
+    providers: [
+        OrdersTableDemoActionsService,
+        { provide: GPO_TABLE_ACTIONS, useExisting: OrdersTableDemoActionsService },
+    ],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
         <gpo-table
@@ -70,13 +76,6 @@ const ORDER_TOTAL = ORDER_ROWS.reduce((sum, row) => sum + row.total, 0);
             [aggregatesTemplate]="aggregatesTemplate"
             (rowClick)="onRowClick($event)">
             <div gpoTableHeader class="demo-page__header">
-                <div>
-                    <h2 class="demo-page__title">Заказы</h2>
-                    <div class="demo-page__hint">
-                        Демо-данные: номера заказов, клиенты, суммы и статусы.
-                    </div>
-                </div>
-
                 <div class="demo-page__actions">
                     <button nz-button (click)="reload()">Обновить</button>
                 </div>
@@ -111,10 +110,11 @@ const ORDER_TOTAL = ORDER_ROWS.reduce((sum, row) => sum + row.total, 0);
     `,
 })
 export class OrdersTableDemoComponent {
+    private readonly _actions = inject(OrdersTableDemoActionsService);
     private readonly _source = staticGridifyDataSource<OrderRow>(ORDER_ROWS);
     private readonly _table = viewChild.required(GpoTableComponent);
 
-    readonly lastAction = signal('Щёлкните строку — событие выбора придёт на страницу.');
+    readonly lastAction = this._actions.lastAction;
 
     readonly dataSource: GpoTableDataSource<OrderRow, OrderAggregates> = {
         getPage: (query) => this._source.getPage(query),

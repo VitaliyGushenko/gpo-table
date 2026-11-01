@@ -76,13 +76,6 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
             (rowClick)="onRowClick($event)"
             (rowDblClick)="onRowDblClick($event)">
             <div gpoTableHeader class="demo-toolbar">
-                <div>
-                    <h2 class="demo-toolbar__title">Реестр демонстрационных записей</h2>
-                    <div class="demo-toolbar__hint">
-                        Данные в памяти, запросы с задержкой; фильтр меняет Gridify-строку страницы.
-                    </div>
-                </div>
-
                 <div class="demo-toolbar__actions">
                     <input
                         nz-input
@@ -153,16 +146,6 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
                 justify-content: space-between;
                 gap: 12px;
                 margin-bottom: 12px;
-            }
-
-            .demo-toolbar__title {
-                margin: 0 0 4px;
-                font-size: 18px;
-            }
-
-            .demo-toolbar__hint {
-                color: rgb(0 0 0 / 55%);
-                font-size: 12px;
             }
 
             .demo-toolbar__actions {
