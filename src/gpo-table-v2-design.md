@@ -1,10 +1,10 @@
-# Таблица реестра на сигналах: текущий `gpo-lib` и проект `app-registry-table`
+# Таблица реестра на сигналах: текущий `gpo-lib` и проект `gpo-table`
 
 > Статус: проект. Код новой таблицы ещё не написан.
 >
 > Документ отвечает на два вопроса:
 > 1. Как сейчас устроена библиотека `src/app/lib` (`gpo-lib`) и почему её таблицу тяжело развивать.
-> 2. Какой должна быть новая таблица `app-registry-table` в `src/app/lib/data-table`, чтобы внедрение
+> 2. Какой должна быть новая таблица `gpo-table` в `src/app/lib/gpo-table`, чтобы внедрение
 >    на странице занимало несколько строк, а данные грузились одним REST-запросом Gridify.
 >
 > Смежные документы: [rest-table-buy-architecture.md](./rest-table-buy-architecture.md) — текущая связка
@@ -17,7 +17,7 @@
 
 ## 1. Коротко: что меняется
 
-| | Сейчас (`lib-gpo-table`) | Новая (`app-registry-table`) |
+| | Сейчас (`lib-gpo-table`) | Новая (`gpo-table`) |
 |---|---|---|
 | Откуда данные | приходят в `@Input() dataTable` | таблица сама запрашивает данные через переданный `dataSource` (swagger + Gridify) |
 | Состояние | мутируемые поля класса + RxJS + `ChangeDetectorRef` | только `signal`/`computed`, без подписок |
@@ -64,7 +64,7 @@ export { Highlight } from './highlight';
 | `gpo-lib.component.*` | Основная таблица `lib-gpo-table` | заменяется |
 | `gpo-lib.service.ts` | Глобальный сервис: `localStorage` колонок, событие resize, расчёт высоты по DOM | нет |
 | `models/Column.ts` | `ColumnFiltered`, `ETypeColumn`, `ETypeColumnFilter`, `Condition`, `Select` | заменяется |
-| `gpo-lib-template.directive.ts` | `ng-template[gpoLibTemplate]` — шаблоны ячеек по ключу | заменяется директивой `appRegistryCell` |
+| `gpo-lib-template.directive.ts` | `ng-template[gpoLibTemplate]` — шаблоны ячеек по ключу | заменяется директивой `gpoTableCell` |
 | `gpo-lib-table-tree/*` | Отдельное дерево `lib-gpo-lib-table-tree` (`TreeTable`, `ColumnHeader`) | остаётся в `gpo-lib` до отдельного проекта |
 | `modules/edit-form/*` | Модалка создания/редактирования, удаления и восстановления записи по URL | нет; заменяется шаблонной колонкой и компонентами страницы |
 | `modules/settings-form/*` | Модалка видимости/порядка колонок, сброс к значениям из кода | нет (возможное расширение позже) |
@@ -216,7 +216,7 @@ new ColumnFiltered(
 
 ---
 
-## 3. Проект новой таблицы `app-registry-table`
+## 3. Проект новой таблицы `gpo-table`
 
 ### 3.1. Принципы
 
@@ -226,7 +226,7 @@ new ColumnFiltered(
 3. **Таблица сама грузит данные.** Один GET на страницу; агрегаты — опционально вторым запросом.
 4. **Разделение на компоненты.** Контейнер знает про REST и состояние; `head`, `body`, `row`, `foot`
    — только отображение.
-5. **Колонки — данные, а не поведение.** Объект `RegistryColumn`; сложное поведение — шаблонная
+5. **Колонки — данные, а не поведение.** Объект `GpoTableColumn`; сложное поведение — шаблонная
    колонка.
 6. **Ничего лишнего в v1.** Ни карточек, ни настроек колонок, ни CRUD, ни фильтров в шапке,
    ни виртуального скролла, ни подсветки.
@@ -243,8 +243,8 @@ new ColumnFiltered(
 - пагинация (номер, размер, быстрый переход);
 - сортировка по одной колонке (по возрастанию / убыванию / без сортировки);
 - колонки `text`, `number`, `date`, `template`;
-- шаблоны ячеек через `<ng-template appRegistryCell="field">`;
-- контент над/под таблицей через `registryTableHeader` / `registryTableFooter`;
+- шаблоны ячеек через `<ng-template gpoTableCell="field">`;
+- контент над/под таблицей через `gpoTableHeader` / `gpoTableFooter`;
 - опциональный расширенный поиск: кнопка по флагу, поля строятся из колонок,
   исключения/справочники — в `column.search`;
 - состояния: загрузка, пусто, ошибка с повтором;
@@ -269,14 +269,14 @@ new ColumnFiltered(
 ### 3.3. Схема компонентов
 
 ```
-<app-registry-table>                        контейнер: входы, эффект загрузки, состояние
-  ├─ ng-content[registryTableHeader]         панель над таблицей (кнопки, поиск)
+<gpo-table>                        контейнер: входы, эффект загрузки, состояние
+  ├─ ng-content[gpoTableHeader]         панель над таблицей (кнопки, поиск)
   ├─ nz-table (nzTemplateMode)               стили и загрузочный оверлей ng-zorro
-  │   ├─ <thead app-registry-table-head>     шапка: заголовки, сортировка
-  │   └─ <tbody app-registry-table-body>     тело: состояния + @for строк
-  │        └─ <tr app-registry-table-row>    строка: ячейки по типу колонки
-  ├─ <app-registry-table-foot>               футер: «Всего записей», агрегаты, пагинация
-  └─ ng-content[registryTableFooter]         панель под таблицей (примечания, свой футер)
+  │   ├─ <thead gpo-table-head>     шапка: заголовки, сортировка
+  │   └─ <tbody gpo-table-body>     тело: состояния + @for строк
+  │        └─ <tr gpo-table-row>    строка: ячейки по типу колонки
+  ├─ <gpo-table-foot>               футер: «Всего записей», агрегаты, пагинация
+  └─ ng-content[gpoTableFooter]         панель под таблицей (примечания, свой футер)
 ```
 
 Почему `thead`/`tbody`/`tr` — это компоненты-атрибуты, а не обёртки-`div`:
@@ -296,44 +296,53 @@ new ColumnFiltered(
 ### 3.4. Файлы
 
 ```
-src/app/lib/data-table/
+src/app/lib/gpo-table/
 ├─ index.ts                          // публичный API ядра
-├─ registry-table.component.ts       // контейнер app-registry-table
-├─ registry-table-head.component.ts  // thead[app-registry-table-head]
-├─ registry-table-body.component.ts  // tbody[app-registry-table-body]
-├─ registry-table-row.component.ts   // tr[app-registry-table-row]
-├─ registry-table-foot.component.ts  // app-registry-table-foot
-├─ registry-table-state.service.ts   // RegistryTableStateService — сигналы и загрузка
-├─ registry-table-height.service.ts  // RegistryTableHeightService — высота до низа окна
-├─ registry-column-resize.directive.ts // ручка изменения ширины колонки
-├─ registry-table-column-width.service.ts // сохранение ширин в localStorage
-├─ registry-table-actions.ts         // REGISTRY_TABLE_ACTIONS — действия строки из сервиса
-├─ registry-table-row-actions.component.ts // меню «⋯»: редактировать/удалить
-├─ registry-table.types.ts           // RegistryColumn, RegistryQuery, RegistryPage, RegistryDataSource
-├─ registry-table.helpers.ts         // readRegistryValue, getErrorMessage, combineGridifyFilters
-├─ registry-search-fields.ts         // buildRegistrySearchFields — поля поиска из колонок
-├─ registry-cell.directive.ts        // ng-template[appRegistryCell]
+├─ core/
+│  ├─ gpo-table.types.ts             // GpoTableColumn, GpoTableQuery, GpoTableDataSource
+│  ├─ gpo-table.helpers.ts           // readGpoTableValue, getErrorMessage, combineGridifyFilters
+│  └─ gpo-table-actions.ts           // GPO_TABLE_ACTIONS — действия строки из сервиса
+├─ components/
+│  ├─ gpo-table.component.ts         // контейнер gpo-table
+│  ├─ head/gpo-table-head.component.ts // thead[gpo-table-head]
+│  ├─ body/gpo-table-body.component.ts // tbody[gpo-table-body]
+│  ├─ row/gpo-table-row.component.ts  // tr[gpo-table-row]
+│  ├─ row/gpo-table-row-actions.component.ts // меню «⋯»
+│  └─ foot/gpo-table-foot.component.ts // gpo-table-foot
+├─ directives/
+│  ├─ gpo-table-cell.directive.ts    // ng-template[gpoTableCell]
+│  └─ gpo-table-column-resize.directive.ts // ручка изменения ширины
+├─ services/
+│  ├─ gpo-table-state.service.ts     // GpoTableStateService — сигналы и загрузка
+│  ├─ gpo-table-height.service.ts    // GpoTableHeightService — высота до низа окна
+│  └─ gpo-table-column-width.service.ts // сохранение ширин в localStorage
+├─ search/
+│  └─ gpo-table-search-fields.ts     // buildGpoTableSearchFields
 ├─ adapters/                         // источники данных; ядро их не импортирует
 │  ├─ index.ts
 │  ├─ swagger-gridify-data-source.ts // swaggerGridifyDataSource — рабочий проект
 │  └─ static-gridify-data-source.ts  // staticGridifyDataSource — дом/демо без бэкенда
 ├─ demo/
-│  └─ registry-table-demo.component.ts // пример страницы для пустого проекта
-└─ README.md                         // как скопировать папку и подключить
+│  ├─ gpo-table-demo.component.ts    // пример страницы для пустого проекта
+│  └─ gpo-table-demo-actions.service.ts // демо-сервис действий
+├─ README.md
+└─ CHANGELOG.md
 ```
+
+Спеки лежат рядом со своими файлами (`*.spec.ts`), в публичный API не входят.
 
 Проектный слой — **вне** переносимой папки, чтобы дома не компилировались импорты
 недоступного стека:
 
 ```
-src/app/lib/data-table-integrations/
+src/app/lib/gpo-table-integrations/
 └─ advanced-search/
    ├─ index.ts
-   ├─ registry-search.component.ts   // кнопка + drawer app-advanced-search-rest
-   └─ registry-search-items.ts        // RegistrySearchField → SearchItem
+   ├─ gpo-table-search.component.ts   // кнопка + drawer app-advanced-search-rest
+   └─ gpo-table-search-items.ts        // GpoTableSearchField → SearchItem
 ```
 
-`data-table-integrations` импортирует `data-table` и стек проекта
+`gpo-table-integrations` импортирует `gpo-table` и стек проекта
 (`advanced-search-rest`, `typed-gridify`); при копировании домой его не берём.
 
 Шаблоны и стили — инлайн в компонентах (`.html`/`.less` рядом нет): папку можно
@@ -343,10 +352,10 @@ Standalone-импорты (частая причина «кнопки без с�
 
 | Компонент | Импорты |
 |---|---|
-| контейнер | `NzTableModule`, `RegistryTableHeadComponent`, `RegistryTableBodyComponent`, `RegistryTableFootComponent` |
-| страница с шаблонными ячейками | `RegistryCellDirective` |
+| контейнер | `NzSpinModule`, `GpoTableHeadComponent`, `GpoTableBodyComponent`, `GpoTableFootComponent` |
+| страница с шаблонными ячейками | `GpoTableCellDirective` |
 | шапка | — (только Angular core) |
-| тело | `NzEmptyModule`, `NzSpinModule`, `NzButtonModule`, `RegistryTableRowComponent` |
+| тело | `NzEmptyModule`, `NzSpinModule`, `NzButtonModule`, `GpoTableRowComponent` |
 | строка | `NgTemplateOutlet` |
 | футер | `NzPaginationModule`, `DecimalPipe` |
 
@@ -358,72 +367,73 @@ Standalone-импорты (частая причина «кнопки без с�
 
 ```ts
 // index.ts — ядро
-export * from './registry-table.types';
-export { RegistryTableComponent } from './registry-table.component';
-export { RegistryCellDirective } from './registry-cell.directive';
-export { buildRegistrySearchFields } from './registry-search-fields';
-export { combineGridifyFilters } from './registry-table.helpers';
+export * from './core/gpo-table.types';
+export { GPO_TABLE_ACTIONS } from './core/gpo-table-actions';
+export { GpoTableComponent } from './components/gpo-table.component';
+export { GpoTableCellDirective } from './directives/gpo-table-cell.directive';
+export { buildGpoTableSearchFields } from './search/gpo-table-search-fields';
+export { combineGridifyFilters } from './core/gpo-table.helpers';
 
 // adapters/index.ts — источники данных
 export * from './swagger-gridify-data-source';
 export * from './static-gridify-data-source';
 
-// data-table-integrations/advanced-search/index.ts — отдельная папка проекта
-export { RegistrySearchComponent } from './registry-search.component';
+// gpo-table-integrations/advanced-search/index.ts — отдельная папка проекта
+export { GpoTableSearchComponent } from './gpo-table-search.component';
 ```
 
 Импорт на странице:
 
 ```ts
-import { RegistryColumn, RegistryTableComponent } from 'src/app/lib/data-table';
-import { swaggerGridifyDataSource } from 'src/app/lib/data-table/adapters';
+import { GpoTableColumn, GpoTableComponent } from 'src/app/lib/gpo-table';
+import { swaggerGridifyDataSource } from 'src/app/lib/gpo-table/adapters';
 ```
 
 ### 3.5. Контракты
 
-`registry-table.types.ts`:
+`gpo-table.types.ts`:
 
 ```ts
 import { TemplateRef } from '@angular/core';
 
 /** Как показать значение ячейки */
-export type RegistryColumnType = 'text' | 'number' | 'date' | 'template';
+export type GpoTableColumnType = 'text' | 'number' | 'date' | 'template';
 
 /** Значение, которое умеет показать таблица без шаблона */
-export type RegistryValue = string | number | boolean | Date | null | undefined;
+export type GpoTableValue = string | number | boolean | Date | null | undefined;
 
 /** Сортировка одной колонки */
-export interface RegistrySort {
+export interface GpoTableSort {
     readonly field: string;
     readonly direction: 'asc' | 'desc';
 }
 
 /** Минимальная ширина колонки при изменении размера */
-export const REGISTRY_COLUMN_MIN_WIDTH = 60;
+export const GPO_TABLE_COLUMN_MIN_WIDTH = 60;
 
 /** Ширины колонок, сохранённые по полю строки */
-export type RegistryColumnWidths = Readonly<Record<string, number>>;
+export type GpoTableColumnWidths = Readonly<Record<string, number>>;
 
 /** Изменение ширины колонки */
-export interface RegistryColumnResize {
+export interface GpoTableColumnResize {
     readonly field: string;
     readonly width: number;
 }
 
 /** Действия строки: таблица получает их из сервиса по токену */
-export interface RegistryTableActions<TRow = Record<string, unknown>> {
+export interface GpoTableActions<TRow = Record<string, unknown>> {
     /** Право на редактирование таблицы: boolean или сигнал/функция для динамических прав */
     readonly isEdit: boolean | (() => boolean);
     onEdit?(row: TRow): void | Promise<void>;
     onRemove?(row: TRow): void | Promise<void>;
 }
 
-export const REGISTRY_TABLE_ACTIONS = new InjectionToken<RegistryTableActions>(
-    'REGISTRY_TABLE_ACTIONS',
+export const GPO_TABLE_ACTIONS = new InjectionToken<GpoTableActions>(
+    'GPO_TABLE_ACTIONS',
 );
 
 /** Вид поля расширенного поиска */
-export type RegistrySearchKind =
+export type GpoTableSearchKind =
     | 'contains'
     | 'equals'
     | 'word'
@@ -435,47 +445,47 @@ export type RegistrySearchKind =
     | 'multipleSelect';
 
 /** Опция справочника для select/multipleSelect */
-export interface RegistrySearchOption {
+export interface GpoTableSearchOption {
     readonly label: string;
     readonly value: string | number;
 }
 
 /** Статичный справочник или ленивый провайдер (вызывается при открытии поиска) */
-export type RegistrySearchDictionary =
-    | readonly RegistrySearchOption[]
-    | (() => readonly RegistrySearchOption[]);
+export type GpoTableSearchDictionary =
+    | readonly GpoTableSearchOption[]
+    | (() => readonly GpoTableSearchOption[]);
 
 /** Настройка одного поля в расширенном поиске */
-export interface RegistrySearchSettings {
+export interface GpoTableSearchSettings {
     /** Вид поля; по умолчанию — по типу колонки */
-    readonly kind?: RegistrySearchKind;
+    readonly kind?: GpoTableSearchKind;
     /** Имя колонки Gridify, если отличается от `field` */
     readonly field?: string;
     /** Заголовок в поиске, если отличается от заголовка колонки */
     readonly title?: string;
     /** Справочник для select/multipleSelect */
-    readonly dictionary?: RegistrySearchDictionary;
+    readonly dictionary?: GpoTableSearchDictionary;
 }
 
 /** Поле, построенное из колонки для расширенного поиска */
-export interface RegistrySearchField {
+export interface GpoTableSearchField {
     /** Ключ формы поиска (обычно `column.field`) */
     readonly key: string;
     /** Имя колонки Gridify */
     readonly field: string;
     readonly title: string;
-    readonly kind: RegistrySearchKind;
-    readonly dictionary?: RegistrySearchDictionary;
+    readonly kind: GpoTableSearchKind;
+    readonly dictionary?: GpoTableSearchDictionary;
 }
 
 /** Описание колонки: только представление, без состояния фильтра и сортировки */
-export interface RegistryColumn<TField extends string = string> {
+export interface GpoTableColumn<TField extends string = string> {
     /** Заголовок */
     readonly title: string;
     /** Ключ поля строки; он же имя поля в Gridify-запросе */
     readonly field: TField;
     /** Тип ячейки; по умолчанию text */
-    readonly type?: RegistryColumnType;
+    readonly type?: GpoTableColumnType;
     /** Ширина в любых CSS-единицах; по умолчанию — auto */
     readonly width?: string;
     /** Можно ли сортировать; по умолчанию false */
@@ -497,20 +507,20 @@ export interface RegistryColumn<TField extends string = string> {
      * false — не искать по колонке; объект — переопределить вид/поле/заголовок/справочник.
      * Не задано — автоматически по типу колонки (кроме template и id).
      */
-    readonly search?: false | RegistrySearchSettings;
+    readonly search?: false | GpoTableSearchSettings;
 }
 
 /** Запрос страницы: всё, что нужно источнику данных */
-export interface RegistryQuery {
+export interface GpoTableQuery {
     readonly page: number;
     readonly pageSize: number;
-    readonly sort: RegistrySort | null;
+    readonly sort: GpoTableSort | null;
     /** Итоговая Gridify-строка: базовый filter + searchFilter */
     readonly filter?: string;
 }
 
 /** Ответ источника: строки и общее количество */
-export interface RegistryPage<TRow> {
+export interface GpoTablePage<TRow> {
     readonly rows: readonly TRow[];
     readonly total: number;
 }
@@ -519,28 +529,28 @@ export interface RegistryPage<TRow> {
  * Плоские агрегаты по умолчанию: счётчики и суммы.
  * Для вложенной формы используйте свой `dataSource` с явным типом агрегатов.
  */
-export type RegistryAggregates = Readonly<Record<string, number>>;
+export type GpoTableAggregates = Readonly<Record<string, number>>;
 
 /** Источник данных таблицы: REST по умолчанию или своя реализация */
-export interface RegistryDataSource<TRow, TAggregates = RegistryAggregates> {
-    getPage(query: RegistryQuery): Promise<RegistryPage<TRow>>;
-    getAggregates?(query: RegistryQuery): Promise<TAggregates>;
+export interface GpoTableDataSource<TRow, TAggregates = GpoTableAggregates> {
+    getPage(query: GpoTableQuery): Promise<GpoTablePage<TRow>>;
+    getAggregates?(query: GpoTableQuery): Promise<TAggregates>;
 }
 
 /** Контекст шаблонной ячейки */
-export interface RegistryCellContext<TRow> {
+export interface GpoTableCellContext<TRow> {
     readonly $implicit: TRow;
     readonly row: TRow;
-    readonly value: RegistryValue;
-    readonly column: RegistryColumn;
+    readonly value: GpoTableValue;
+    readonly column: GpoTableColumn;
     readonly index: number;
 }
 
 /** Шаблон ячейки; строка в шаблоне — запись полей, конкретный DTO приводит страница */
-export type RegistryCellTemplate = TemplateRef<RegistryCellContext<Record<string, unknown>>>;
+export type GpoTableCellTemplate = TemplateRef<GpoTableCellContext<Record<string, unknown>>>;
 
 /** Контекст шаблона футера */
-export interface RegistryFooterContext<TAggregates> {
+export interface GpoTableFooterContext<TAggregates> {
     readonly $implicit: TAggregates | null;
     readonly isLoading: boolean;
     readonly error: string | null;
@@ -557,7 +567,7 @@ export interface RegistryFooterContext<TAggregates> {
 | `text` (по умолчанию) | `String(value)`, пустое — пустая строка | — |
 | `number` | число | `DecimalPipe`/`formatNumber` с локалью приложения (`LOCALE_ID`), разделители разрядов |
 | `date` | дата | `formatDate(value, column.dateFormat ?? 'dd.MM.yyyy', LOCALE_ID)`; пусто — `—` |
-| `template` | `ng-template` по `field`; если шаблона нет — текст | контекст `RegistryCellContext` |
+| `template` | `ng-template` по `field`; если шаблона нет — текст | контекст `GpoTableCellContext` |
 
 `boolean`, `enum`, `status`, `select` и прочие типы из `gpo-lib` в v1 не нужны: их заменяет
 `template`. Если одинаковый шаблон повторяется на 3+ страницах — тогда добавляется новый тип,
@@ -565,20 +575,20 @@ export interface RegistryFooterContext<TAggregates> {
 
 #### Поля поиска из колонок
 
-`registry-search-fields.ts` — автоматическая сборка полей расширенного поиска: перечислять
+`gpo-table-search-fields.ts` — автоматическая сборка полей расширенного поиска: перечислять
 все поля не нужно, только исключения и переопределения.
 
 ```ts
 import {
-    RegistryColumn,
-    RegistryColumnType,
-    RegistrySearchField,
-    RegistrySearchKind,
-    RegistrySearchSettings,
-} from './registry-table.types';
+    GpoTableColumn,
+    GpoTableColumnType,
+    GpoTableSearchField,
+    GpoTableSearchKind,
+    GpoTableSearchSettings,
+} from './gpo-table.types';
 
 /** Вид поиска по умолчанию для типа колонки */
-const DEFAULT_KIND: Record<RegistryColumnType, RegistrySearchKind | null> = {
+const DEFAULT_KIND: Record<GpoTableColumnType, GpoTableSearchKind | null> = {
     text: 'contains',
     number: 'numberCondition',
     date: 'dateRange',
@@ -588,16 +598,16 @@ const DEFAULT_KIND: Record<RegistryColumnType, RegistrySearchKind | null> = {
 /** Технические поля, которые не попадают в поиск без явной настройки */
 const DEFAULT_EXCLUDED_FIELDS: readonly string[] = ['id'];
 
-export interface RegistrySearchBuildOptions {
+export interface GpoTableSearchBuildOptions {
     /** Дополнительные поля-исключения (кроме id) */
     readonly excludedFields?: readonly string[];
 }
 
 /** Построить поля поиска из колонок: исключения и переопределения — в column.search */
-export function buildRegistrySearchFields(
-    columns: readonly RegistryColumn[],
-    options: RegistrySearchBuildOptions = {},
-): RegistrySearchField[] {
+export function buildGpoTableSearchFields(
+    columns: readonly GpoTableColumn[],
+    options: GpoTableSearchBuildOptions = {},
+): GpoTableSearchField[] {
     const excluded = new Set([...DEFAULT_EXCLUDED_FIELDS, ...(options.excludedFields ?? [])]);
 
     return columns.flatMap((column) => {
@@ -611,7 +621,7 @@ export function buildRegistrySearchFields(
             return [];
         }
 
-        const settings: RegistrySearchSettings = isExplicit ? column.search : {};
+        const settings: GpoTableSearchSettings = isExplicit ? column.search : {};
         // Справочник без kind — это select; иначе вид по типу колонки
         const defaultKind = settings.dictionary ? 'select' : DEFAULT_KIND[column.type ?? 'text'];
         const kind = settings.kind ?? defaultKind;
@@ -650,7 +660,7 @@ export function buildRegistrySearchFields(
 | `search: { title: '...' }` | другой заголовок в поиске |
 
 Если ключ строки не `id`, передайте его в `excludedFields`:
-`buildRegistrySearchFields(columns, { excludedFields: [rowKey] })`.
+`buildGpoTableSearchFields(columns, { excludedFields: [rowKey] })`.
 
 Порядок полей в поиске совпадает с порядком колонок. Скрытые колонки (`isVisible: false`)
 по умолчанию остаются в поиске — если не нужны, поставьте `search: false`.
@@ -658,7 +668,7 @@ export function buildRegistrySearchFields(
 Пример — перечисляем только исключения и справочники:
 
 ```ts
-const columns: RegistryColumn[] = [
+const columns: GpoTableColumn[] = [
     { title: 'ID', field: 'id', type: 'number' },                          // не ищется (id)
     { title: 'Наименование', field: 'name' },                              // contains
     { title: 'Количество', field: 'count', type: 'number' },               // numberCondition
@@ -677,14 +687,14 @@ const columns: RegistryColumn[] = [
 ];
 ```
 
-`registry-table.helpers.ts` — функции без зависимостей от проекта (важно для переносимости):
+`gpo-table.helpers.ts` — функции без зависимостей от проекта (важно для переносимости):
 
 ```ts
-import { RegistryValue } from './registry-table.types';
+import { GpoTableValue } from './gpo-table.types';
 
 /** Прочитать поле строки по имени; вложенные объекты показываются только шаблоном */
-export function readRegistryValue<TRow extends object>(row: TRow, field: string): RegistryValue {
-    return Reflect.get(row, field) as RegistryValue;
+export function readGpoTableValue<TRow extends object>(row: TRow, field: string): GpoTableValue {
+    return Reflect.get(row, field) as GpoTableValue;
 }
 
 /** Текст ошибки для пользователя: строка, HttpErrorResponse или Error */
@@ -724,19 +734,19 @@ export function combineGridifyFilters(
 }
 ```
 
-### 3.6. Состояние: `RegistryTableStateService`
+### 3.6. Состояние: `GpoTableStateService`
 
-Сервис провайдится **на компонент** (`providers: [RegistryTableStateService]`), поэтому у каждой
+Сервис провайдится **на компонент** (`providers: [GpoTableStateService]`), поэтому у каждой
 таблицы своё состояние и нет утечки между экземплярами.
 
 ```ts
 import { computed, Injectable, signal } from '@angular/core';
 
-import { getErrorMessage } from './registry-table.helpers';
-import { RegistryAggregates, RegistryDataSource, RegistryQuery, RegistrySort } from './registry-table.types';
+import { getErrorMessage } from './gpo-table.helpers';
+import { GpoTableAggregates, GpoTableDataSource, GpoTableQuery, GpoTableSort } from './gpo-table.types';
 
 /** Начальный запрос: первая страница, без фильтра и сортировки */
-const DEFAULT_QUERY: RegistryQuery = {
+const DEFAULT_QUERY: GpoTableQuery = {
     page: 1,
     pageSize: 150,
     sort: null,
@@ -745,12 +755,12 @@ const DEFAULT_QUERY: RegistryQuery = {
 
 /** Состояние одной таблицы реестра: запрос, строки, агрегаты */
 @Injectable()
-export class RegistryTableStateService<TRow extends object, TAggregates = RegistryAggregates> {
+export class GpoTableStateService<TRow extends object, TAggregates = GpoTableAggregates> {
     /**
      * Единственный источник истины для запроса.
      * Каждое изменение заменяет объект целиком — старый объект становится «устаревшим запросом».
      */
-    readonly query = signal<RegistryQuery>(DEFAULT_QUERY);
+    readonly query = signal<GpoTableQuery>(DEFAULT_QUERY);
 
     readonly page = computed(() => this.query().page);
     readonly pageSize = computed(() => this.query().pageSize);
@@ -768,10 +778,10 @@ export class RegistryTableStateService<TRow extends object, TAggregates = Regist
     readonly hasRows = computed(() => this.rows().length > 0);
     readonly isEmpty = computed(() => !this.isLoading() && !this.hasRows() && !this.error());
 
-    private _dataSource: RegistryDataSource<TRow, TAggregates> | null = null;
+    private _dataSource: GpoTableDataSource<TRow, TAggregates> | null = null;
 
     /** Подключить источник; вызывает только контейнер */
-    connect(dataSource: RegistryDataSource<TRow, TAggregates>): void {
+    connect(dataSource: GpoTableDataSource<TRow, TAggregates>): void {
         if (dataSource === this._dataSource) {
             return;
         }
@@ -815,7 +825,7 @@ export class RegistryTableStateService<TRow extends object, TAggregates = Regist
     }
 
     /** Новая сортировка всегда начинает с первой */
-    setSort(sort: RegistrySort | null): void {
+    setSort(sort: GpoTableSort | null): void {
         this.query.update((query) => ({ ...query, page: 1, sort }));
     }
 
@@ -906,7 +916,7 @@ export class RegistryTableStateService<TRow extends object, TAggregates = Regist
 - **Один источник истины** — `query`. Страница, сортировка и фильтр не хранятся отдельными
   сигналами: они вычисляются из запроса, поэтому не могут разъехаться.
 - **Запросы только через `async/await`** (`firstValueFrom` внутри swagger-адаптера), без `subscribe`.
-- **`RegistryQuery` — только для чтения**: источник не меняет объект запроса, иначе сравнение
+- **`GpoTableQuery` — только для чтения**: источник не меняет объект запроса, иначе сравнение
   снимков перестанет работать.
 - **Актуальность ответа** — по снимку `query`, а не по счётчику: ответ применяется, только если
   это всё ещё текущий объект запроса. Смена страницы/фильтра/сортировки или источника заменяет
@@ -959,7 +969,7 @@ buyGetBuyAggregates(Page?: number, PageSize?: number, OrderBy?: string, Filter?:
 ```ts
 import { Observable, firstValueFrom } from 'rxjs';
 
-import { RegistryAggregates, RegistryDataSource, RegistryPage, RegistryQuery, RegistrySort } from './registry-table.types';
+import { GpoTableAggregates, GpoTableDataSource, GpoTablePage, GpoTableQuery, GpoTableSort } from './gpo-table.types';
 
 /** Аргументы Gridify-метода swagger: страница, размер, сортировка и фильтр */
 export interface SwaggerGridifyQuery {
@@ -976,7 +986,7 @@ export interface SwaggerGridifyPage<TRow> {
 }
 
 /** Сортировка таблицы в строку Gridify для параметра OrderBy */
-export function toGridifyOrderBy(sort: RegistrySort | null): string | undefined {
+export function toGridifyOrderBy(sort: GpoTableSort | null): string | undefined {
     return sort ? `${sort.field} ${sort.direction}` : undefined;
 }
 
@@ -984,11 +994,11 @@ export function toGridifyOrderBy(sort: RegistrySort | null): string | undefined 
  * Источник данных поверх сгенерированного swagger-клиента.
  * `loadPage` — метод /qry, `loadAggregates` — необязательный метод /aggregates.
  */
-export function swaggerGridifyDataSource<TRow, TAggregates = RegistryAggregates>(
+export function swaggerGridifyDataSource<TRow, TAggregates = GpoTableAggregates>(
     loadPage: (query: SwaggerGridifyQuery) => Observable<SwaggerGridifyPage<TRow>>,
     loadAggregates?: (query: SwaggerGridifyQuery) => Observable<TAggregates>,
-): RegistryDataSource<TRow, TAggregates> {
-    const toSwaggerQuery = (query: RegistryQuery): SwaggerGridifyQuery => ({
+): GpoTableDataSource<TRow, TAggregates> {
+    const toSwaggerQuery = (query: GpoTableQuery): SwaggerGridifyQuery => ({
         page: query.page,
         pageSize: query.pageSize,
         orderBy: toGridifyOrderBy(query.sort),
@@ -996,14 +1006,14 @@ export function swaggerGridifyDataSource<TRow, TAggregates = RegistryAggregates>
     });
 
     return {
-        async getPage(query: RegistryQuery): Promise<RegistryPage<TRow>> {
+        async getPage(query: GpoTableQuery): Promise<GpoTablePage<TRow>> {
             const response = await firstValueFrom(loadPage(toSwaggerQuery(query)));
             return { rows: response.data ?? [], total: response.count ?? 0 };
         },
 
         ...(loadAggregates
             ? {
-                  async getAggregates(query: RegistryQuery): Promise<TAggregates> {
+                  async getAggregates(query: GpoTableQuery): Promise<TAggregates> {
                       // Агрегатам нужен только фильтр: страница и сортировка не имеют смысла
                       return firstValueFrom(
                           loadAggregates({ page: 1, pageSize: 1, filter: query.filter }),
@@ -1048,14 +1058,14 @@ readonly dataSource = swaggerGridifyDataSource<BuyQry, BuyAggregatesResponse>(
 считаются на клиенте, фильтр можно передать предикатом.
 
 ```ts
-import { readRegistryValue } from '../registry-table.helpers';
-import { RegistryDataSource, RegistryValue } from '../registry-table.types';
+import { readGpoTableValue } from '../gpo-table.helpers';
+import { GpoTableDataSource, GpoTableValue } from '../gpo-table.types';
 
 /** Источник для демо: строки в памяти, пагинация и сортировка на клиенте */
 export function staticGridifyDataSource<TRow extends object>(
     rows: readonly TRow[],
     isMatch?: (row: TRow, filter?: string) => boolean,
-): RegistryDataSource<TRow> {
+): GpoTableDataSource<TRow> {
     return {
         async getPage(query) {
             const matched =
@@ -1064,8 +1074,8 @@ export function staticGridifyDataSource<TRow extends object>(
             const sorted = query.sort
                 ? matched.sort((a, b) =>
                       compareValues(
-                          readRegistryValue(a, query.sort!.field),
-                          readRegistryValue(b, query.sort!.field),
+                          readGpoTableValue(a, query.sort!.field),
+                          readGpoTableValue(b, query.sort!.field),
                           query.sort!.direction,
                       ),
                   )
@@ -1077,7 +1087,7 @@ export function staticGridifyDataSource<TRow extends object>(
     };
 }
 
-function compareValues(a: RegistryValue, b: RegistryValue, direction: 'asc' | 'desc'): number {
+function compareValues(a: GpoTableValue, b: GpoTableValue, direction: 'asc' | 'desc'): number {
     const result =
         typeof a === 'number' && typeof b === 'number'
             ? a - b
@@ -1090,10 +1100,10 @@ function compareValues(a: RegistryValue, b: RegistryValue, direction: 'asc' | 'd
 и проверять пагинацию, сортировку, шаблоны ячеек и состояния.
 
 Если у сущности другой контракт ответа или нужна постобработка строк, страница реализует
-`RegistryDataSource` вручную — это тот же интерфейс, что и у адаптера:
+`GpoTableDataSource` вручную — это тот же интерфейс, что и у адаптера:
 
 ```ts
-readonly dataSource: RegistryDataSource<ItemRow> = {
+readonly dataSource: GpoTableDataSource<ItemRow> = {
     getPage: async (query) => {
         const response = await firstValueFrom(this._api.getItems(/* ... */));
         return { rows: this.prepareRows(response.data), total: response.count };
@@ -1115,14 +1125,14 @@ Gridify-строку. Старые классы остаются для ещё �
 
 ### 3.8. Компоненты и их API
 
-#### `RegistryTableComponent` — контейнер
+#### `GpoTableComponent` — контейнер
 
 Входы:
 
 | Вход | Тип | Назначение |
 |---|---|---|
-| `columns` | `readonly RegistryColumn[]` (required) | Описание колонок |
-| `dataSource` | `RegistryDataSource<TRow, TAggregates>` (required) | Обёртка над swagger-методами `/qry` и `/aggregates` |
+| `columns` | `readonly GpoTableColumn[]` (required) | Описание колонок |
+| `dataSource` | `GpoTableDataSource<TRow, TAggregates>` (required) | Обёртка над swagger-методами `/qry` и `/aggregates` |
 | `filter` | `string` | Базовый Gridify-фильтр страницы (постоянные условия) |
 | `searchFilter` | `string` | Gridify-фильтр расширенного поиска; склеивается с `filter` через AND |
 | `pageSize` | `number` (150) | Начальный размер страницы |
@@ -1133,7 +1143,7 @@ Gridify-строку. Старые классы остаются для ещё �
 | `bottomOffset` | `number` (`0`) | Отступ снизу вне таблицы: padding страницы или внешний футер |
 | `emptyText` | `string` (`'Данные не найдены'`) | Текст пустого состояния |
 | `isShowFooter` | `boolean` (`true`) | Показывать встроенный футер (итоги + пагинация) |
-| `aggregatesTemplate` | `TemplateRef<RegistryFooterContext<TAggregates>>` | Шаблон агрегатов во встроенном футере |
+| `aggregatesTemplate` | `TemplateRef<GpoTableFooterContext<TAggregates>>` | Шаблон агрегатов во встроенном футере |
 
 Выходы:
 
@@ -1143,7 +1153,7 @@ Gridify-строку. Старые классы остаются для ещё �
 | `rowDblClick` | `TRow` | Двойной клик по строке |
 | `pageChange` | `number` | Смена страницы |
 | `pageSizeChange` | `number` | Смена размера страницы |
-| `sortChange` | `RegistrySort \| null` | Смена сортировки |
+| `sortChange` | `GpoTableSort \| null` | Смена сортировки |
 | `aggregatesLoaded` | `TAggregates` | Агрегаты загружены |
 | `totalChange` | `number` | Изменилось общее количество записей |
 
@@ -1161,30 +1171,30 @@ goToPage(page: number): Promise<void>;
 /** Сменить размер страницы; для своего футера или внешней панели */
 changePageSize(size: number): Promise<void>;
 /** Сменить сортировку; для своего заголовка или внешней панели */
-changeSort(sort: RegistrySort | null): Promise<void>;
+changeSort(sort: GpoTableSort | null): Promise<void>;
 ```
 
 Контент-слоты:
 
 ```html
 <!-- шаблоны ячеек -->
-<ng-template appRegistryCell="field" let-row let-value="value" let-index="index">...</ng-template>
+<ng-template gpoTableCell="field" let-row let-value="value" let-index="index">...</ng-template>
 
 <!-- произвольный контент над таблицей -->
-<div registryTableHeader>...</div>
+<div gpoTableHeader>...</div>
 
 <!-- произвольный контент под таблицей -->
-<div registryTableFooter>...</div>
+<div gpoTableFooter>...</div>
 ```
 
 Инициализация и реакция на входы:
 
 ```ts
-export class RegistryTableComponent<TRow extends object, TAggregates = RegistryAggregates> {
-    private readonly _state = inject(RegistryTableStateService) as RegistryTableStateService<TRow, TAggregates>;
+export class GpoTableComponent<TRow extends object, TAggregates = GpoTableAggregates> {
+    private readonly _state = inject(GpoTableStateService) as GpoTableStateService<TRow, TAggregates>;
 
-    readonly columns = input.required<readonly RegistryColumn[]>();
-    readonly dataSource = input.required<RegistryDataSource<TRow, TAggregates>>();
+    readonly columns = input.required<readonly GpoTableColumn[]>();
+    readonly dataSource = input.required<GpoTableDataSource<TRow, TAggregates>>();
     readonly filter = input<string>();
     readonly searchFilter = input<string>();
     readonly pageSize = input(150);
@@ -1197,7 +1207,7 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
     protected readonly state = this._state;
     protected readonly visibleColumns = computed(() => this.columns().filter((column) => column.isVisible !== false));
 
-    private _connectedSource: RegistryDataSource<TRow, TAggregates> | null = null;
+    private _connectedSource: GpoTableDataSource<TRow, TAggregates> | null = null;
     private _lastFilter: string | undefined = undefined;
     private _isInitialPageSize = true;
 
@@ -1283,7 +1293,7 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
         return this._state.reload();
     }
 
-    changeSort(sort: RegistrySort | null): Promise<void> {
+    changeSort(sort: GpoTableSort | null): Promise<void> {
         const pageBefore = this._state.page();
         this._state.setSort(sort);
         this.sortChange.emit(sort);
@@ -1309,18 +1319,18 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
   `dataSource`; при их изменении страница вызывает `table.reload()`;
 - `dataSource` обязателен: без него Angular сообщит об ошибке шаблона, а не покажет пустую таблицу.
 
-#### `RegistryTableHeadComponent`
+#### `GpoTableHeadComponent`
 
-Селектор: `thead[app-registry-table-head]`.
+Селектор: `thead[gpo-table-head]`.
 
 | Вход | Тип | Назначение |
 |---|---|---|
-| `columns` | `readonly RegistryColumn[]` | Видимые колонки |
-| `sort` | `RegistrySort \| null` | Текущая сортировка |
+| `columns` | `readonly GpoTableColumn[]` | Видимые колонки |
+| `sort` | `GpoTableSort \| null` | Текущая сортировка |
 
 | Выход | Тип | Когда |
 |---|---|---|
-| `sortChange` | `RegistrySort \| null` | Клик по сортируемой колонке |
+| `sortChange` | `GpoTableSort \| null` | Клик по сортируемой колонке |
 
 Шаблон:
 
@@ -1333,15 +1343,15 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
             [class]="column.cssClass ?? ''"
             [attr.aria-sort]="getAriaSort(column)">
             @if (column.isSortable) {
-                <button type="button" class="registry-table__sort" (click)="toggleSort(column)">
-                    <span class="registry-table__sort-title">{{ column.title }}</span>
-                    <span class="registry-table__sorter" aria-hidden="true">
+                <button type="button" class="gpo-table__sort" (click)="toggleSort(column)">
+                    <span class="gpo-table__sort-title">{{ column.title }}</span>
+                    <span class="gpo-table__sorter" aria-hidden="true">
                         <span
-                            class="registry-table__sorter-arrow"
-                            [class.registry-table__sorter-arrow--active]="isSortActive(column, 'asc')">▲</span>
+                            class="gpo-table__sorter-arrow"
+                            [class.gpo-table__sorter-arrow--active]="isSortActive(column, 'asc')">▲</span>
                         <span
-                            class="registry-table__sorter-arrow"
-                            [class.registry-table__sorter-arrow--active]="isSortActive(column, 'desc')">▼</span>
+                            class="gpo-table__sorter-arrow"
+                            [class.gpo-table__sorter-arrow--active]="isSortActive(column, 'desc')">▼</span>
                     </span>
                 </button>
             } @else {
@@ -1350,8 +1360,8 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
 
             @if (column.isResizable !== false) {
                 <span
-                    appRegistryColumnResize
-                    class="registry-table__resize"
+                    gpoTableColumnResize
+                    class="gpo-table__resize"
                     [attr.aria-label]="'Изменить ширину: ' + column.title"
                     (widthChange)="onColumnResize(column, $event)"></span>
             }
@@ -1362,7 +1372,7 @@ export class RegistryTableComponent<TRow extends object, TAggregates = RegistryA
 
 ```ts
 /** Активна ли стрелка указанного направления */
-protected isSortActive(column: RegistryColumn, direction: 'asc' | 'desc'): boolean {
+protected isSortActive(column: GpoTableColumn, direction: 'asc' | 'desc'): boolean {
     const sort = this.sort();
     return sort?.field === column.field && sort.direction === direction;
 }
@@ -1371,15 +1381,15 @@ protected isSortActive(column: RegistryColumn, direction: 'asc' | 'desc'): boole
 Цикл сортировки: клик 1 — `asc`, клик 2 — `desc`, клик 3 — без сортировки (бэкенд применяет
 свой порядок по умолчанию).
 
-#### `RegistryTableBodyComponent`
+#### `GpoTableBodyComponent`
 
-Селектор: `tbody[app-registry-table-body]`.
+Селектор: `tbody[gpo-table-body]`.
 
 | Вход | Тип | Назначение |
 |---|---|---|
-| `columns` | `readonly RegistryColumn[]` | Видимые колонки |
+| `columns` | `readonly GpoTableColumn[]` | Видимые колонки |
 | `rows` | `readonly TRow[]` | Строки текущей страницы |
-| `templates` | `ReadonlyMap<string, RegistryCellTemplate>` | Шаблоны ячеек |
+| `templates` | `ReadonlyMap<string, GpoTableCellTemplate>` | Шаблоны ячеек |
 | `rowKey` | `string` | Поле уникального ключа |
 | `isLoading` | `boolean` | Загрузка |
 | `error` | `string \| null` | Текст ошибки |
@@ -1400,25 +1410,25 @@ protected isSortActive(column: RegistryColumn, direction: 'asc' | 'desc'): boole
 
 ```html
 @if (error()) {
-    <tr class="registry-table__state-row">
+    <tr class="gpo-table__state-row">
         <td [attr.colspan]="columns().length">
-            <div class="registry-table__state">
+            <div class="gpo-table__state">
                 <span>{{ error() }}</span>
                 <button nz-button nzSize="small" (click)="retry.emit()">Повторить</button>
             </div>
         </td>
     </tr>
 } @else if (isLoading() && !rows().length) {
-    <tr class="registry-table__state-row">
+    <tr class="gpo-table__state-row">
         <td [attr.colspan]="columns().length">
-            <div class="registry-table__state">
+            <div class="gpo-table__state">
                 <nz-spin nzSimple nzSize="small"></nz-spin>
                 <span>Загрузка данных</span>
             </div>
         </td>
     </tr>
 } @else if (!rows().length) {
-    <tr class="registry-table__state-row">
+    <tr class="gpo-table__state-row">
         <td [attr.colspan]="columns().length">
             <nz-empty [nzNotFoundContent]="emptyText()"></nz-empty>
         </td>
@@ -1426,7 +1436,7 @@ protected isSortActive(column: RegistryColumn, direction: 'asc' | 'desc'): boole
 } @else {
     @for (row of rows(); track trackRow($index, row)) {
         <tr
-            app-registry-table-row
+            gpo-table-row
             [row]="row"
             [index]="$index"
             [columns]="columns()"
@@ -1441,22 +1451,22 @@ protected isSortActive(column: RegistryColumn, direction: 'asc' | 'desc'): boole
 ```ts
 /** Устойчивый ключ строки; при отсутствии rowKey — индекс */
 protected trackRow(index: number, row: TRow): unknown {
-    return readRegistryValue(row, this.rowKey()) ?? index;
+    return readGpoTableValue(row, this.rowKey()) ?? index;
 }
 ```
 
-`readRegistryValue` — общий хелпер из `registry-table.helpers.ts` (используется и строкой, и телом).
+`readGpoTableValue` — общий хелпер из `gpo-table.helpers.ts` (используется и строкой, и телом).
 
-#### `RegistryTableRowComponent`
+#### `GpoTableRowComponent`
 
-Селектор: `tr[app-registry-table-row]`.
+Селектор: `tr[gpo-table-row]`.
 
 | Вход | Тип | Назначение |
 |---|---|---|
 | `row` | `TRow` (required) | Строка |
 | `index` | `number` (required) | Индекс для контекста шаблона |
-| `columns` | `readonly RegistryColumn[]` (required) | Колонки |
-| `templates` | `ReadonlyMap<string, RegistryCellTemplate>` (required) | Шаблоны |
+| `columns` | `readonly GpoTableColumn[]` (required) | Колонки |
+| `templates` | `ReadonlyMap<string, GpoTableCellTemplate>` (required) | Шаблоны |
 
 Строка не форматирует значения в шаблоне «на лету», а один раз собирает представление ячеек:
 
@@ -1465,25 +1475,25 @@ import { formatDate, formatNumber, LOCALE_ID } from '@angular/common';
 import { computed, inject } from '@angular/core';
 
 /** Готовая ячейка: текст, шаблон и оформление посчитаны один раз на строку */
-interface RegistryCellView {
-    readonly column: RegistryColumn;
+interface GpoTableCellView {
+    readonly column: GpoTableColumn;
     readonly text: string;
-    readonly template: RegistryCellTemplate | null;
-    readonly context: RegistryCellContext<Record<string, unknown>>;
+    readonly template: GpoTableCellTemplate | null;
+    readonly context: GpoTableCellContext<Record<string, unknown>>;
     readonly align: 'left' | 'center' | 'right';
     readonly className: string;
     readonly title: string;
 }
 
-protected readonly cells = computed<RegistryCellView[]>(() =>
+protected readonly cells = computed<GpoTableCellView[]>(() =>
     this.columns().map((column, index) => this.prepareCell(column, index)),
 );
 
 // Локаль приходит из приложения: в рабочем проекте — ru, дома в пустом — en-US
 private readonly _locale = inject(LOCALE_ID);
 
-private prepareCell(column: RegistryColumn, index: number): RegistryCellView {
-    const value = readRegistryValue(this.row(), column.field);
+private prepareCell(column: GpoTableColumn, index: number): GpoTableCellView {
+    const value = readGpoTableValue(this.row(), column.field);
     const type = column.type ?? 'text';
     const template = this.templates().get(column.field) ?? null;
 
@@ -1510,7 +1520,7 @@ private prepareCell(column: RegistryColumn, index: number): RegistryCellView {
         template,
         context: { $implicit: row, row, value, column, index },
         align: column.align ?? (type === 'number' ? 'right' : 'left'),
-        className: [type === 'number' ? 'registry-table__cell--number' : '', column.cssClass ?? '']
+        className: [type === 'number' ? 'gpo-table__cell--number' : '', column.cssClass ?? '']
             .filter(Boolean)
             .join(' '),
         title: template ? '' : text,
@@ -1535,12 +1545,12 @@ private prepareCell(column: RegistryColumn, index: number): RegistryCellView {
 }
 ```
 
-Чтение поля — одно контролируемое приведение типа в библиотеке (`registry-table.helpers.ts`,
+Чтение поля — одно контролируемое приведение типа в библиотеке (`gpo-table.helpers.ts`,
 см. §3.5).
 
-#### `RegistryTableFootComponent`
+#### `GpoTableFootComponent`
 
-Селектор: `app-registry-table-foot`.
+Селектор: `gpo-table-foot`.
 
 | Вход | Тип | Назначение |
 |---|---|---|
@@ -1551,7 +1561,7 @@ private prepareCell(column: RegistryColumn, index: number): RegistryCellView {
 | `aggregates` | `TAggregates \| null` | Агрегаты |
 | `isAggregatesLoading` | `boolean` | Загрузка агрегатов |
 | `aggregatesError` | `string \| null` | Ошибка агрегатов |
-| `aggregatesTemplate` | `TemplateRef<RegistryFooterContext<TAggregates>>` | Кастомный левый блок |
+| `aggregatesTemplate` | `TemplateRef<GpoTableFooterContext<TAggregates>>` | Кастомный левый блок |
 
 | Выход | Тип |
 |---|---|
@@ -1564,8 +1574,8 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
 ```
 
 ```html
-<div class="registry-table__footer">
-    <div class="registry-table__summary">
+<div class="gpo-table__footer">
+    <div class="gpo-table__summary">
         @if (aggregatesTemplate()) {
             <ng-container
                 [ngTemplateOutlet]="aggregatesTemplate()"
@@ -1600,20 +1610,20 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
 
 ```html
 <!-- контент над таблицей: заголовок, кнопки, поиск -->
-<ng-content select="[registryTableHeader]" />
+<ng-content select="[gpoTableHeader]" />
 
 <nz-spin [nzSpinning]="isTableLoading()">
     <div class="ant-table">
         <div class="ant-table-container">
             <div
                 #scrollArea
-                class="ant-table-content registry-table__scroll"
+                class="ant-table-content gpo-table__scroll"
                 [style.max-height.px]="scrollMaxHeight()"
                 [style.overflow-x]="scrollWidth() ? 'auto' : 'hidden'">
                 <table [style.min-width]="scrollWidth()">
                     <thead
                         class="ant-table-thead"
-                        app-registry-table-head
+                        gpo-table-head
                         [columns]="visibleColumns()"
                         [sort]="state.sort()"
                         (sortChange)="changeSort($event)">
@@ -1621,7 +1631,7 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
 
                     <tbody
                         class="ant-table-tbody"
-                        app-registry-table-body
+                        gpo-table-body
                         [columns]="visibleColumns()"
                         [rows]="state.rows()"
                         [templates]="templatesByField()"
@@ -1639,9 +1649,9 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
     </div>
 </nz-spin>
 
-<div #belowTable class="registry-table__below">
+<div #belowTable class="gpo-table__below">
     @if (isShowFooter()) {
-        <app-registry-table-foot
+        <gpo-table-foot
             [total]="state.total()"
             [page]="state.page()"
             [pageSize]="state.pageSize()"
@@ -1652,10 +1662,10 @@ protected readonly pageSizeOptionsArray = computed(() => [...this.pageSizeOption
             [aggregatesTemplate]="aggregatesTemplate()"
             (pageChange)="goToPage($event)"
             (pageSizeChange)="changePageSize($event)">
-        </app-registry-table-foot>
+        </gpo-table-foot>
     }
 
-    <ng-content select="[registryTableFooter]" />
+    <ng-content select="[gpoTableFooter]" />
 </div>
 ```
 
@@ -1667,13 +1677,13 @@ protected readonly isTableLoading = computed(() => this.state.isLoading() && thi
 protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeight());
 ```
 
-`scrollMaxHeight` приходит из `RegistryTableHeightService` (§3.8.1): область таблицы получает
+`scrollMaxHeight` приходит из `GpoTableHeightService` (§3.8.1): область таблицы получает
 `max-height`, поэтому при малом числе строк таблица не растягивается, а при большом — скроллится.
 
-#### 3.8.1. `RegistryTableHeightService`
+#### 3.8.1. `GpoTableHeightService`
 
 Сервис провайдится на компонент рядом с состоянием. Он измеряет верх области таблицы и высоту
-блока под ней (футер + слот `registryTableFooter`), вычитает `bottomOffset` и отдаёт сигнал
+блока под ней (футер + слот `gpoTableFooter`), вычитает `bottomOffset` и отдаёт сигнал
 `maxHeight`. Слушает `window.resize`, `visualViewport.resize` и `ResizeObserver` на `body`
 и элементах таблицы; пересчёт — не чаще одного кадра.
 
@@ -1690,12 +1700,12 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 меняет ширину `th` вживую, отпускание отдаёт итоговую ширину в контейнер. С клавиатуры работают
 `←`/`→`, с `Shift` — крупнее; минимум — 60px.
 
-- `RegistryColumnResizeDirective` — только pointer/keyboard и ширина `th`, ничего не знает
+- `GpoTableColumnResizeDirective` — только pointer/keyboard и ширина `th`, ничего не знает
   о `localStorage`;
-- контейнер хранит `signal<RegistryColumnWidths>` и строит эффективные колонки:
+- контейнер хранит `signal<GpoTableColumnWidths>` и строит эффективные колонки:
   сохранённая ширина перекрывает `column.width`;
-- `RegistryTableColumnWidthService` читает и пишет ключ
-  `registry-table-columns:<storageKey>`; битые, нечисловые и слишком маленькие значения
+- `GpoTableColumnWidthService` читает и пишет ключ
+  `gpo-table-columns:<storageKey>`; битые, нечисловые и слишком маленькие значения
   отбрасываются; ошибки storage не ломают таблицу;
 - без `storageKey` resize работает, но ширины живут только в памяти;
 - `resetColumnWidths()` очищает ширины и удаляет ключ;
@@ -1704,11 +1714,11 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 #### 3.8.3. Действия строки
 
 Таблица не получает действия через входы. Страница провайдит сервис под токеном
-`REGISTRY_TABLE_ACTIONS`; таблица инжектит его опционально и строит первую колонку «⋯».
+`GPO_TABLE_ACTIONS`; таблица инжектит его опционально и строит первую колонку «⋯».
 
 ```ts
 @Injectable()
-export class ItemsActions implements RegistryTableActions<ItemRow> {
+export class ItemsActions implements GpoTableActions<ItemRow> {
     readonly isEdit = true;
 
     onEdit(row: ItemRow): void {
@@ -1721,7 +1731,7 @@ export class ItemsActions implements RegistryTableActions<ItemRow> {
 }
 
 @Component({
-    providers: [{ provide: REGISTRY_TABLE_ACTIONS, useClass: ItemsActions }],
+    providers: [{ provide: GPO_TABLE_ACTIONS, useClass: ItemsActions }],
 })
 export class ItemsComponent {}
 ```
@@ -1740,53 +1750,53 @@ export class ItemsComponent {}
 ```ts
 import { Directive, input } from '@angular/core';
 
-import { RegistryCellTemplate } from './registry-table.types';
+import { GpoTableCellTemplate } from './gpo-table.types';
 
-/** Шаблон ячейки: <ng-template appRegistryCell="field">...</ng-template> */
+/** Шаблон ячейки: <ng-template gpoTableCell="field">...</ng-template> */
 @Directive({
-    selector: 'ng-template[appRegistryCell]',
+    selector: 'ng-template[gpoTableCell]',
     standalone: true,
 })
-export class RegistryCellDirective {
-    /** Поле колонки, к которой относится шаблон; приходит из атрибута appRegistryCell */
-    readonly appRegistryCell = input.required<string>();
+export class GpoTableCellDirective {
+    /** Поле колонки, к которой относится шаблон; приходит из атрибута gpoTableCell */
+    readonly gpoTableCell = input.required<string>();
 
-    constructor(public readonly templateRef: RegistryCellTemplate) {}
+    constructor(public readonly templateRef: GpoTableCellTemplate) {}
 }
 ```
 
 Контейнер собирает карту шаблонов:
 
 ```ts
-private readonly _cellTemplates = contentChildren(RegistryCellDirective);
+private readonly _cellTemplates = contentChildren(GpoTableCellDirective);
 
 protected readonly templatesByField = computed(() => {
-    const map = new Map<string, RegistryCellTemplate>();
+    const map = new Map<string, GpoTableCellTemplate>();
     for (const directive of this._cellTemplates()) {
-        map.set(directive.appRegistryCell(), directive.templateRef);
+        map.set(directive.gpoTableCell(), directive.templateRef);
     }
     return map;
 });
 ```
 
-Использование на странице (в компоненте страницы импортируется `RegistryCellDirective`):
+Использование на странице (в компоненте страницы импортируется `GpoTableCellDirective`):
 
 ```html
-<app-registry-table [dataSource]="dataSource" [columns]="columns" [filter]="filter()">
-    <ng-template appRegistryCell="code" let-row let-value="value">
+<gpo-table [dataSource]="dataSource" [columns]="columns" [filter]="filter()">
+    <ng-template gpoTableCell="code" let-row let-value="value">
         <a (click)="$event.stopPropagation(); openItem(row)">{{ value }}</a>
     </ng-template>
 
-    <ng-template appRegistryCell="id" let-row>
+    <ng-template gpoTableCell="id" let-row>
         <button nz-button nzSize="small" (click)="$event.stopPropagation(); edit(row)">Изменить</button>
     </ng-template>
-</app-registry-table>
+</gpo-table>
 ```
 
-Шаблоны ячеек кладутся прямыми детьми `app-registry-table`, а не внутрь `registryTableHeader`
-или `registryTableFooter`: контейнер ищет их контент-запросом, а не проецирует.
+Шаблоны ячеек кладутся прямыми детьми `gpo-table`, а не внутрь `gpoTableHeader`
+или `gpoTableFooter`: контейнер ищет их контент-запросом, а не проецирует.
 
-Шаблон получает контекст `RegistryCellContext`: `$implicit`/`row`, `value`, `column`, `index`.
+Шаблон получает контекст `GpoTableCellContext`: `$implicit`/`row`, `value`, `column`, `index`.
 `row` типизирован как `Record<string, unknown>` — таблица не знает конкретный DTO. На странице
 обработчик принимает эту запись и один раз приводит её к своему типу:
 
@@ -1833,7 +1843,7 @@ table {
     white-space: nowrap;
 }
 
-.registry-table__footer {
+.gpo-table__footer {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1841,7 +1851,7 @@ table {
     padding: 8px 0;
 }
 
-.registry-table__sort {
+.gpo-table__sort {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1856,12 +1866,12 @@ table {
     cursor: pointer;
 }
 
-.registry-table__sort-title {
+.gpo-table__sort-title {
     flex: 1;
     min-width: 0;
 }
 
-.registry-table__sorter {
+.gpo-table__sorter {
     display: inline-flex;
     flex-direction: column;
     flex: 0 0 auto;
@@ -1869,7 +1879,7 @@ table {
     line-height: 1;
 }
 
-.registry-table__sorter-arrow {
+.gpo-table__sorter-arrow {
     display: block;
     padding: 0 2px;
     border-radius: 2px;
@@ -1879,12 +1889,12 @@ table {
     transition: color 0.2s, background-color 0.2s;
 }
 
-.registry-table__sorter-arrow--active {
+.gpo-table__sorter-arrow--active {
     background: #e6f4ff;
     color: #1677ff;
 }
 
-.registry-table__state {
+.gpo-table__state {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1902,35 +1912,35 @@ CSS для конкретной ячейки/класса.
 ### 3.12. Контент над и под таблицей (header/footer)
 
 Уточнение терминов: **шапка таблицы** — это `<thead>` с колонками (её рисует
-`RegistryTableHeadComponent`); **header-контент** — панель над таблицей (заголовок, кнопки,
+`GpoTableHeadComponent`); **header-контент** — панель над таблицей (заголовок, кнопки,
 поиск, легенда). Ниже — про второе.
 
 Контент над и под таблицей — это обычный `ng-content`, потому что он находится **вне**
 `<nz-table>` и не участвует в раскладке `<table>`:
 
 ```html
-<app-registry-table
+<gpo-table
     [dataSource]="dataSource"
     [columns]="columns"
     (rowClick)="open($event)">
 
     <!-- над таблицей: заголовок, кнопки, поиск, переключатели -->
-    <div registryTableHeader class="items-toolbar">
+    <div gpoTableHeader class="items-toolbar">
         <button nz-button nzType="primary" (click)="create()">Создать</button>
         <input nz-input placeholder="Поиск" [ngModel]="quickSearch()" (ngModelChange)="quickSearch.set($event)" />
     </div>
 
     <!-- под таблицей: примечание, легенда, свои итоги -->
-    <div registryTableFooter class="items-note">
+    <div gpoTableFooter class="items-note">
         Выбрано записей: {{ selectedCount() }}
     </div>
-</app-registry-table>
+</gpo-table>
 ```
 
 Правила:
 
-- `registryTableHeader` — произвольная разметка и логика страницы над таблицей;
-- `registryTableFooter` — произвольная разметка под таблицей (после встроенного футера);
+- `gpoTableHeader` — произвольная разметка и логика страницы над таблицей;
+- `gpoTableFooter` — произвольная разметка под таблицей (после встроенного футера);
 - ядро таблицы не знает, что в этих слотах: страница сама импортирует нужные модули
   (`NzButtonModule`, `NzInputModule`, `FormsModule` и т.п.);
 - если контента нет — слот ничего не рисует;
@@ -1942,7 +1952,7 @@ CSS для конкретной ячейки/класса.
 Встроенный футер (итоги + пагинация) можно отключить:
 
 ```html
-<app-registry-table
+<gpo-table
     #table
     [isShowFooter]="false"
     [dataSource]="dataSource"
@@ -1951,7 +1961,7 @@ CSS для конкретной ячейки/класса.
     (pageChange)="page.set($event)"
     (pageSizeChange)="pageSize.set($event)">
 
-    <div registryTableFooter class="custom-footer">
+    <div gpoTableFooter class="custom-footer">
         <span>Всего: {{ total() }}</span>
         <nz-pagination
             [nzPageIndex]="page()"
@@ -1961,7 +1971,7 @@ CSS для конкретной ячейки/класса.
             (nzPageSizeChange)="table.changePageSize($event)">
         </nz-pagination>
     </div>
-</app-registry-table>
+</gpo-table>
 ```
 
 ```ts
@@ -1979,7 +1989,7 @@ readonly pageSize = signal(150);
 ```ts
 goToPage(page: number): Promise<void>;
 changePageSize(size: number): Promise<void>;
-changeSort(sort: RegistrySort | null): Promise<void>;
+changeSort(sort: GpoTableSort | null): Promise<void>;
 reload(): Promise<void>;
 refreshHeight(): void;
 ```
@@ -1997,8 +2007,8 @@ refreshHeight(): void;
 Если положить в слот готовый `<thead>`, он окажется вне внутренней `<table>` ng-zorro,
 и колонки разъедутся. Поэтому:
 
-- контент **над/под** таблицей — `ng-content` (`registryTableHeader` / `registryTableFooter`);
-- ячейки **внутри** таблицы — `ng-template appRegistryCell`;
+- контент **над/под** таблицей — `ng-content` (`gpoTableHeader` / `gpoTableFooter`);
+- ячейки **внутри** таблицы — `ng-template gpoTableCell`;
 - если понадобится полностью своё тело или строка — это отдельный слой (экспорт
   `head/body/row/foot` и сборка своего `<nz-table>`), а не `ng-content`.
 
@@ -2011,8 +2021,8 @@ refreshHeight(): void;
 
 | Слой | Что делает | Где живёт |
 |---|---|---|
-| Ядро | `buildRegistrySearchFields(columns)` — поля из колонок, `column.search` — исключения/переопределения | `data-table/registry-search-fields.ts`, переносимо |
-| Интеграция | Кнопка + drawer `app-advanced-search-rest`, маппинг полей в `SearchItem`, сборка Gridify-строки | `src/app/lib/data-table-integrations/advanced-search/`, зависит от стека проекта |
+| Ядро | `buildGpoTableSearchFields(columns)` — поля из колонок, `column.search` — исключения/переопределения | `gpo-table/search/gpo-table-search-fields.ts`, переносимо |
+| Интеграция | Кнопка + drawer `app-advanced-search-rest`, маппинг полей в `SearchItem`, сборка Gridify-строки | `src/app/lib/gpo-table-integrations/advanced-search/`, зависит от стека проекта |
 | Таблица | Принимает `searchFilter` и склеивает его с базовым `filter` через AND | ядро |
 
 #### Настройка колонки
@@ -2020,7 +2030,7 @@ refreshHeight(): void;
 Перечислять все поля не нужно — только отклонения:
 
 ```ts
-const columns: RegistryColumn[] = [
+const columns: GpoTableColumn[] = [
     { title: 'ID', field: 'id', type: 'number' },                          // id не ищется по умолчанию
     { title: 'Наименование', field: 'name' },                              // text → contains
     { title: 'Количество', field: 'count', type: 'number' },               // number → numberCondition
@@ -2042,7 +2052,7 @@ const columns: RegistryColumn[] = [
 Справочник — статический массив или ленивый провайдер:
 
 ```ts
-interface RegistrySearchOption {
+interface GpoTableSearchOption {
     label: string;
     value: string | number;
 }
@@ -2057,38 +2067,38 @@ search: { kind: 'select', dictionary: () => this.directory.organizations() }
 #### Использование на странице
 
 ```ts
-import { RegistrySearchComponent } from 'src/app/lib/data-table-integrations/advanced-search';
+import { GpoTableSearchComponent } from 'src/app/lib/gpo-table-integrations/advanced-search';
 ```
 
 ```html
-<app-registry-table
+<gpo-table
     [dataSource]="dataSource"
     [columns]="columns"
     [filter]="baseFilter()"
     [searchFilter]="searchFilter()">
 
-    <app-registry-search
-        registryTableHeader
+    <app-gpo-table-search
+        gpoTableHeader
         [columns]="columns"
         [isShowButton]="canUseAdvancedSearch()"
         (filterChange)="searchFilter.set($event)" />
-</app-registry-table>
+</gpo-table>
 ```
 
 - `isShowButton` — тот самый флаг: `false` — кнопка не показывается и поиск недоступен.
   Флаг живёт на интеграции, а не на таблице: ядро не знает про поиск; при желании его можно
   обернуть в `@if` или тонкую обёртку;
-- `app-registry-search` — проект-специфичная интеграция; в ядро не входит;
+- `app-gpo-table-search` — проект-специфичная интеграция; в ядро не входит;
 - `searchFilter` — Gridify-строка от поиска; таблица склеивает её с базовым `filter`
   через `combineGridifyFilters` (`(base),(search)`), сбрасывает страницу и делает один запрос.
 
 #### Что делает интеграция
 
-`registry-search.component.ts` (схема):
+`gpo-table-search.component.ts` (схема):
 
 ```ts
 @Component({
-    selector: 'app-registry-search',
+    selector: 'app-gpo-table-search',
     standalone: true,
     imports: [AdvancedSearchButtonComponent, RestAdvancedSearchComponent],
     template: `
@@ -2105,8 +2115,8 @@ import { RegistrySearchComponent } from 'src/app/lib/data-table-integrations/adv
         }
     `,
 })
-export class RegistrySearchComponent {
-    readonly columns = input.required<readonly RegistryColumn[]>();
+export class GpoTableSearchComponent {
+    readonly columns = input.required<readonly GpoTableColumn[]>();
     readonly isShowButton = input(true);
     readonly title = input('Расширенный поиск');
     readonly filterChange = output<string | undefined>();
@@ -2115,7 +2125,7 @@ export class RegistrySearchComponent {
     protected readonly flatFilter = signal<Record<string, unknown>>({});
     protected readonly modes = signal<Record<string, unknown>>({});
 
-    protected readonly searchItems = computed(() => buildRegistrySearchItems(this.columns()));
+    protected readonly searchItems = computed(() => buildGpoTableSearchItems(this.columns()));
     private readonly searchRules = computed(() => buildSearchFormRules(this.searchItems()));
 
     protected open(): void {
@@ -2139,7 +2149,7 @@ export class RegistrySearchComponent {
 }
 ```
 
-Маппинг `RegistrySearchField` → `SearchItem`:
+Маппинг `GpoTableSearchField` → `SearchItem`:
 
 | `kind` | Дескриптор `advanced-search-rest` |
 |---|---|
@@ -2155,15 +2165,15 @@ export class RegistrySearchComponent {
 
 ```ts
 /** Собрать items для app-advanced-search-rest из полей таблицы */
-export function buildRegistrySearchItems(columns: readonly RegistryColumn[]): Record<string, SearchItem> {
+export function buildGpoTableSearchItems(columns: readonly GpoTableColumn[]): Record<string, SearchItem> {
     const items: Record<string, SearchItem> = {};
-    for (const field of buildRegistrySearchFields(columns)) {
+    for (const field of buildGpoTableSearchFields(columns)) {
         items[field.key] = createSearchItem(field);
     }
     return items;
 }
 
-function createSearchItem(field: RegistrySearchField): SearchItem {
+function createSearchItem(field: GpoTableSearchField): SearchItem {
     const item = createByKind(field);
     if (field.field !== field.key) {
         item.setField(field.field);
@@ -2172,7 +2182,7 @@ function createSearchItem(field: RegistrySearchField): SearchItem {
     return item;
 }
 
-function createByKind(field: RegistrySearchField): SearchItem {
+function createByKind(field: GpoTableSearchField): SearchItem {
     switch (field.kind) {
         case 'contains':
             return new SearchItemContains(field.title);
@@ -2201,7 +2211,7 @@ function createByKind(field: RegistrySearchField): SearchItem {
 `createByKind` — обычный `switch` по `field.kind`; `applyDictionary` умеет и массив, и провайдер:
 
 ```ts
-function applyDictionary(item: SearchItem, dictionary?: RegistrySearchDictionary): void {
+function applyDictionary(item: SearchItem, dictionary?: GpoTableSearchDictionary): void {
     if (!dictionary || !(item instanceof SearchItemSelect)) {
         return;
     }
@@ -2228,13 +2238,13 @@ function applyDictionary(item: SearchItem, dictionary?: RegistrySearchDictionary
 `advanced-search-rest` — проект-специфичный стек (Reactive Forms, `SearchItem`, `applySearchForm`).
 Если положить его в ядро, папка перестанет быть переносимой. Поэтому:
 
-- ядро строит **описания полей** (`RegistrySearchField`) — переносимо;
-- готовая интеграция с drawer'ом — рядом, в `data-table-integrations/advanced-search/`;
-- дома можно разрабатывать ядро и `buildRegistrySearchFields`, а UI поиска подключить позже
+- ядро строит **описания полей** (`GpoTableSearchField`) — переносимо;
+- готовая интеграция с drawer'ом — рядом, в `gpo-table-integrations/advanced-search/`;
+- дома можно разрабатывать ядро и `buildGpoTableSearchFields`, а UI поиска подключить позже
   или собрать простой свой.
 
-Если хочется совсем один тег, в `data-table-integrations` можно сделать тонкую обёртку
-`app-registry-table-with-search`: она складывает `app-registry-table` + `app-registry-search`
+Если хочется совсем один тег, в `gpo-table-integrations` можно сделать тонкую обёртку
+`gpo-table-with-search`: она складывает `gpo-table` + `app-gpo-table-search`
 и проксирует входы/выходы. В ядро это не тащим.
 
 ---
@@ -2246,8 +2256,8 @@ function applyDictionary(item: SearchItem, dictionary?: RegistrySearchDictionary
 ```ts
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { ItemsApiService } from '@swagger/api';
-import { RegistryColumn, RegistryTableComponent } from 'src/app/lib/data-table';
-import { swaggerGridifyDataSource } from 'src/app/lib/data-table/adapters';
+import { GpoTableColumn, GpoTableComponent } from 'src/app/lib/gpo-table';
+import { swaggerGridifyDataSource } from 'src/app/lib/gpo-table/adapters';
 
 interface ItemRow {
     id: number;
@@ -2260,10 +2270,10 @@ interface ItemRow {
 @Component({
     selector: 'app-items',
     standalone: true,
-    imports: [RegistryTableComponent],
+    imports: [GpoTableComponent],
     changeDetection: ChangeDetectionStrategy.OnPush,
     template: `
-        <app-registry-table
+        <gpo-table
             [dataSource]="dataSource"
             [columns]="columns"
             [filter]="filter()" />
@@ -2280,7 +2290,7 @@ export class ItemsComponent {
         this._itemsApi.itemsGetItemsQry(query.page, query.pageSize, query.orderBy, query.filter),
     );
 
-    readonly columns: RegistryColumn<keyof ItemRow>[] = [
+    readonly columns: GpoTableColumn<keyof ItemRow>[] = [
         { title: 'Код', field: 'code', width: '120px', isSortable: true },
         { title: 'Наименование', field: 'name' },
         { title: 'Количество', field: 'count', type: 'number', width: '120px', isSortable: true },
@@ -2295,7 +2305,7 @@ export class ItemsComponent {
 ### 4.2. Шаблонная колонка
 
 ```ts
-readonly columns: RegistryColumn<keyof ItemRow>[] = [
+readonly columns: GpoTableColumn<keyof ItemRow>[] = [
     { title: 'Код', field: 'code', width: '120px', isSortable: true },
     { title: 'Наименование', field: 'name' },
     { title: '', field: 'id', type: 'template', width: '120px', align: 'center' },
@@ -2303,41 +2313,41 @@ readonly columns: RegistryColumn<keyof ItemRow>[] = [
 ```
 
 ```html
-<app-registry-table [dataSource]="dataSource" [columns]="columns">
-    <ng-template appRegistryCell="id" let-row>
+<gpo-table [dataSource]="dataSource" [columns]="columns">
+    <ng-template gpoTableCell="id" let-row>
         <button nz-button nzSize="small" (click)="$event.stopPropagation(); edit(row)">Изменить</button>
     </ng-template>
-</app-registry-table>
+</gpo-table>
 ```
 
 Для колонки действий используется реальное поле строки (`id`), но ячейка рисуется шаблоном.
 Если нужны две шаблонные колонки на одно поле — берётся любое другое существующее поле;
-искусственные ключи не требуются. Компонент страницы подключает `RegistryCellDirective`
+искусственные ключи не требуются. Компонент страницы подключает `GpoTableCellDirective`
 и `NzButtonModule` (или те модули, чьи контролы используются в шаблоне ячейки). Обработчик `edit` принимает
 `Record<string, unknown>` и приводит запись к DTO страницы — как в §3.9.
 
 ### 4.3. Расширенный поиск и базовый фильтр
 
-**Штатный путь** — `app-registry-search` в header-слоте; поля строятся из колонок,
+**Штатный путь** — `app-gpo-table-search` в header-слоте; поля строятся из колонок,
 настраиваются только исключения и справочники:
 
 ```html
-<app-registry-table
+<gpo-table
     [dataSource]="dataSource"
     [columns]="columns"
     [filter]="baseFilter()"
     [searchFilter]="searchFilter()">
 
-    <app-registry-search
-        registryTableHeader
+    <app-gpo-table-search
+        gpoTableHeader
         [columns]="columns"
         [isShowButton]="canUseAdvancedSearch()"
         (filterChange)="searchFilter.set($event)" />
-</app-registry-table>
+</gpo-table>
 ```
 
 ```ts
-readonly columns: RegistryColumn[] = [
+readonly columns: GpoTableColumn[] = [
     { title: 'ID', field: 'id', type: 'number' },                 // id не ищется по умолчанию
     { title: 'Комментарий', field: 'comment', search: false },     // убрать из поиска
     {
@@ -2348,10 +2358,10 @@ readonly columns: RegistryColumn[] = [
 ];
 ```
 
-**Без поиска** — просто не добавляйте `app-registry-search`; `searchFilter` не нужен:
+**Без поиска** — просто не добавляйте `app-gpo-table-search`; `searchFilter` не нужен:
 
 ```html
-<app-registry-table [dataSource]="dataSource" [columns]="columns" />
+<gpo-table [dataSource]="dataSource" [columns]="columns" />
 ```
 
 По умолчанию получается таблица с шапкой, строками, пагинацией и «Всего записей». Кнопки
@@ -2378,7 +2388,7 @@ readonly baseFilter = computed(() =>
 ```
 
 ```html
-<app-registry-table
+<gpo-table
     [dataSource]="dataSource"
     [columns]="columns"
     [filter]="baseFilter()"
@@ -2401,7 +2411,7 @@ readonly dataSource = swaggerGridifyDataSource<BuyQry, BuyAggregatesResponse>(
 ```
 
 ```html
-<app-registry-table
+<gpo-table
     [dataSource]="dataSource"
     [columns]="columns"
     [filter]="filter()"
@@ -2431,10 +2441,10 @@ readonly dataSource = swaggerGridifyDataSource<BuyQry, BuyAggregatesResponse>(
 
 ```ts
 import { firstValueFrom } from 'rxjs';
-import { RegistryDataSource } from 'src/app/lib/data-table';
-import { toGridifyOrderBy } from 'src/app/lib/data-table/adapters';
+import { GpoTableDataSource } from 'src/app/lib/gpo-table';
+import { toGridifyOrderBy } from 'src/app/lib/gpo-table/adapters';
 
-readonly dataSource: RegistryDataSource<ItemRow> = {
+readonly dataSource: GpoTableDataSource<ItemRow> = {
     getPage: async (query) => {
         const response = await firstValueFrom(
             this._itemsApi.itemsGetItemsQry(
@@ -2450,7 +2460,7 @@ readonly dataSource: RegistryDataSource<ItemRow> = {
 ```
 
 ```html
-<app-registry-table [dataSource]="dataSource" [columns]="columns" [filter]="filter()" />
+<gpo-table [dataSource]="dataSource" [columns]="columns" [filter]="filter()" />
 ```
 
 `dataSource` должен быть стабильным полем класса, а не создаваться в шаблоне вызовом метода:
@@ -2459,7 +2469,7 @@ readonly dataSource: RegistryDataSource<ItemRow> = {
 ### 4.6. Обновление после изменений
 
 ```ts
-private readonly table = viewChild.required(RegistryTableComponent);
+private readonly table = viewChild.required(GpoTableComponent);
 
 async onSaved(): Promise<void> {
     await this.table().reload();
@@ -2475,25 +2485,25 @@ async onSaved(): Promise<void> {
 
 ### 5.1. Таблица соответствий
 
-| `lib-gpo-table` / `gpo-lib` | `app-registry-table` |
+| `lib-gpo-table` / `gpo-lib` | `gpo-table` |
 |---|---|
 | `[dataTable]` | нет; строки грузит сама таблица |
 | `[loading]` | нет; `isLoading` внутри |
 | `[totalCount]`, `[pageIndex]`, `[pageSize]` | нет; состояние внутри |
-| `[columns]` + `ColumnFiltered` | `[columns]` + `RegistryColumn` |
+| `[columns]` + `ColumnFiltered` | `[columns]` + `GpoTableColumn` |
 | `[titleTableName]` + настройки колонок | `storageKey` — сохранение только ширин; видимость/порядок не в v1 |
 | `(pageIndexChange)`, `(pageSizeChange)` | `(pageChange)`, `(pageSizeChange)`, `(sortChange)` — опционально для аналитики |
 | `(sortColumnChange)` | `(sortChange)`; таблица уже применила сортировку |
 | `(clickedTd)` | `(rowClick)` |
 | `(dblclickRow)` | `(rowDblClick)` |
 | `(clickActiveCell)` | шаблонная колонка |
-| `[editAccess]`, `[actionsForm]` | сервис `REGISTRY_TABLE_ACTIONS`: `isEdit`, `onEdit`, `onRemove` |
-| `[customButtons]`, `[isShowSettings]` | контент над таблицей: атрибут `registryTableHeader` |
+| `[editAccess]`, `[actionsForm]` | сервис `GPO_TABLE_ACTIONS`: `isEdit`, `onEdit`, `onRemove` |
+| `[customButtons]`, `[isShowSettings]` | контент над таблицей: атрибут `gpoTableHeader` |
 | `[isShowActions]` | колонка действий показывается, если сервис действий провайдится и `isEdit: true` |
-| `[title]`, `[legend]` | контент над/под таблицей: `registryTableHeader` / `registryTableFooter` |
-| `[footerTemplate]` | `aggregatesTemplate` или `registryTableFooter` (при `[isShowFooter]="false"`) |
+| `[title]`, `[legend]` | контент над/под таблицей: `gpoTableHeader` / `gpoTableFooter` |
+| `[footerTemplate]` | `aggregatesTemplate` или `gpoTableFooter` (при `[isShowFooter]="false"`) |
 | `[customFirstThCol]`, `[customTdBtn]`, `[statusTd]` | шаблонная колонка |
-| `[conditions]`, `[conditionsNumber]`, `[specialColumn]` | `column.search` (auto по типу) + `app-registry-search`; воронок в шапке нет |
+| `[conditions]`, `[conditionsNumber]`, `[specialColumn]` | `column.search` (auto по типу) + `app-gpo-table-search`; воронок в шапке нет |
 | `[useVirtualScroll]` | нет в v1 |
 | `[bordered]`, `[size]`, `[ellipsis]` | CSS/LESS страницы; ellipsis — в стилях таблицы |
 | `[scrollX]`, `[widthAdd]` | `[scrollWidth]` |
@@ -2507,7 +2517,7 @@ async onSaved(): Promise<void> {
 
 Колонки:
 
-| `ColumnFiltered` | `RegistryColumn` |
+| `ColumnFiltered` | `GpoTableColumn` |
 |---|---|
 | `name` | `title` |
 | `columnKey` | `field` |
@@ -2518,7 +2528,7 @@ async onSaved(): Promise<void> {
 | `orientation` (прилипание колонки) | нет в v1 |
 | `searchValue`, `condition`, `active`, `select`, `typeFilter`, `selection`, `inwhere` | нет; фильтр приходит строкой снаружи |
 
-| `ETypeColumn` | `RegistryColumn.type` |
+| `ETypeColumn` | `GpoTableColumn.type` |
 |---|---|
 | `string`, `select`, `textAria`, `year`, `week`, `monthAndYear` | `text` |
 | `number`, `observableNumber` | `number` |
@@ -2567,13 +2577,13 @@ async onSaved(): Promise<void> {
 
 ### 5.3. Порядок миграции
 
-1. **Каркас новой таблицы** (`data-table/*`), юнит-тесты состояния и источника, без изменения
+1. **Каркас новой таблицы** (`gpo-table/*`), юнит-тесты состояния и источника, без изменения
    существующих страниц.
 2. **Пилот на одной простой REST-странице** без дерева и специфических действий
    (например, список asot или buy). Критерий: страница стала короче, поведение совпадает.
 3. **Пилот на странице с шаблонными ячейками и агрегатами** (buy или отчёт).
 4. **Подключение auto-search на пилоте**: `column.search` только для исключений/справочников,
-   `app-registry-search` в header-слоте, флаг `isShowButton`, склейка `searchFilter`.
+   `app-gpo-table-search` в header-слоте, флаг `isShowButton`, склейка `searchFilter`.
 5. **Миграция остальных реестров по одной странице**; `gpo-lib` остаётся для дерева,
    карточек и ещё не переведённых страниц.
 6. **Чистка**: когда `lib-gpo-table` не используется, удалить его вместе с
@@ -2589,11 +2599,11 @@ async onSaved(): Promise<void> {
 | Проекция компонентов в `nz-table` (`thead`/`tbody`/`tr`) поведёт себя иначе, чем инлайн-разметка | Первый прототип — до пилота: шапка + 2 строки + сортировка. При проблеме — нативная `<table>` с классами `ant-table` и теми же компонентами |
 | Экспорт/печать завязаны на `ColumnFiltered` (`ExportTable`, `print-table.service`) | В v1 экспорт не входит; на мигрируемых страницах либо оставить старую таблицу до адаптации экспорта, либо описать колонки для `ExportTable` отдельно |
 | Пользователи привыкли к настройкам колонок и `localStorage` | Ширины сохраняются по `storageKey`; видимость и порядок колонок — отдельным шагом |
-| Контент над/под таблицей остаётся у страницы | Это осознанно: `registryTableHeader`/`registryTableFooter` дают место для любых кнопок и текстов, но таблица не обрастает их логикой |
+| Контент над/под таблицей остаётся у страницы | Это осознанно: `gpoTableHeader`/`gpoTableFooter` дают место для любых кнопок и текстов, но таблица не обрастает их логикой |
 | `filter` приходит слишком часто | Дебаунс/применение по кнопке — в форме поиска; таблица делает запрос на каждое новое значение |
 | Автопоиск тянет лишние/технические поля | `id` и `template` исключены по умолчанию; `search: false`; явный `search.kind` включает поле обратно |
 | Поиск ломает базовый фильтр с OR-группами | `combineGridifyFilters` оборачивает каждую часть в скобки: `(base),(search)`; проверить тестом |
-| Гонки запросов | Снимок `query` в `RegistryTableStateService`; поздний ответ отбрасывается |
+| Гонки запросов | Снимок `query` в `GpoTableStateService`; поздний ответ отбрасывается |
 | Ошибка одного `track`-ключа ломает строки | `rowKey` по умолчанию `id`; при отсутствии ключа используется индекс |
 | Скрытая зависимость от `BaseTable` | Новая таблица не импортирует `BaseTable`, `GridifySearchTable`, `GridifyRepository`, `ColumnFiltered`, `Utils` и `gpo-lib` — только Angular, ng-zorro и свои файлы |
 
@@ -2617,23 +2627,23 @@ async onSaved(): Promise<void> {
 
 | Вопрос | Решение | Почему |
 |---|---|---|
-| Кто грузит данные | Контейнер + `RegistryTableStateService` | «Внедрение в несколько строк»: страница не должна повторять пагинацию/сортировку/загрузку |
+| Кто грузит данные | Контейнер + `GpoTableStateService` | «Внедрение в несколько строк»: страница не должна повторять пагинацию/сортировку/загрузку |
 | Транспорт | Gridify REST через сгенерированный swagger-клиент | Это целевой стек проекта; GraphQL/QB-таблицы остаются на старых моделях до отдельной миграции |
 | Как передать данные | `dataSource` из swagger-методов | Типы и методы уже сгенерированы; URL-строки в таблице не нужны. `swaggerGridifyDataSource` убирает повторяющийся маппинг ответа, своя реализация — для постобработки |
 | Где живёт фильтр | Базовый `filter` — снаружи; поиск — `searchFilter` из интеграции | Таблица не знает поля формы; склеивает две Gridify-строки через AND |
 | Поля расширенного поиска | Автоматически из колонок | Не перечислять все поля; исключения (`search: false`) и справочники (`search.dictionary`) — точечно |
-| Где живёт drawer поиска | В `data-table-integrations/advanced-search` | Ядро остаётся переносимым; `advanced-search-rest` — проектный стек |
+| Где живёт drawer поиска | В `gpo-table-integrations/advanced-search` | Ядро остаётся переносимым; `advanced-search-rest` — проектный стек |
 | Модель колонки | Объект, 4 типа | Читается без конструктора и позиционных аргументов; сложное — шаблоном |
-| Шаблоны ячеек | Контент-директива `appRegistryCell` | Не нужно ждать `viewChild` и пересобирать колонки после инициализации |
+| Шаблоны ячеек | Контент-директива `gpoTableCell` | Не нужно ждать `viewChild` и пересобирать колонки после инициализации |
 | Разбиение | `head` / `body` / `row` / `foot` | Маленькие OnPush-компоненты; строку можно менять, не трогая таблицу |
 | Состояние | `signal`/`computed`, сервис на компонент | Нет утечки между таблицами; нет RxJS-подписок и ручной перерисовки |
-| Высота | `max-height` от `RegistryTableHeightService` | Таблица прижимается к низу окна, но при малом числе строк не растягивается; без DOM-селекторов и `setTimeout` |
-| Ширины колонок | `RegistryColumnResizeDirective` + `RegistryTableColumnWidthService` | Resize остаётся в шапке, сохранение — отдельным сервисом; ключ `storageKey` не даёт таблицам перетирать ширины друг друга |
-| Действия строки | Сервис по токену `REGISTRY_TABLE_ACTIONS` | Не плодить входы таблицы; новые флаги и методы добавляются в сервис страницы |
+| Высота | `max-height` от `GpoTableHeightService` | Таблица прижимается к низу окна, но при малом числе строк не растягивается; без DOM-селекторов и `setTimeout` |
+| Ширины колонок | `GpoTableColumnResizeDirective` + `GpoTableColumnWidthService` | Resize остаётся в шапке, сохранение — отдельным сервисом; ключ `storageKey` не даёт таблицам перетирать ширины друг друга |
+| Действия строки | Сервис по токену `GPO_TABLE_ACTIONS` | Не плодить входы таблицы; новые флаги и методы добавляются в сервис страницы |
 | Фильтры колонок | Воронки в шапке — не в v1; расширенный поиск — отдельная интеграция | Самый тяжёлый кусок `gpo-lib` — воронки; поиск в drawer'е проще и не ломает шапку |
 | Поля расширенного поиска | Автоматически из колонок + `column.search` | Не перечислять все поля: только исключения (`search: false`) и справочники |
 | Карточки, настройки, CRUD | Не в v1 | Каждая функция удваивает разметку и состояние; для них есть отдельные компоненты/страницы |
-| `BaseTable`/`GridifySearchTable` | Не используем | Они тянут легаси-модель и union фильтров; новая таблица принимает плоский `RegistryQuery` |
+| `BaseTable`/`GridifySearchTable` | Не используем | Они тянут легаси-модель и union фильтров; новая таблица принимает плоский `GpoTableQuery` |
 | Как переносить между проектами | Самодостаточная папка + адаптеры, копирование | Временный режим: npm-пакет или submodule — лишняя инфраструктура. Когда механизм готов, папка целиком переносится сюда |
 | Кастомизация | header/footer — `ng-content`, ячейки — `ng-template` | Над/под таблицей проекция безопасна; внутри `<table>` — только шаблоны, иначе ломается раскладка |
 
@@ -2665,17 +2675,17 @@ async onSaved(): Promise<void> {
 |---|---|---|
 | `Utils.getTextError` | локальный `getErrorMessage` | нет проектной утилиты |
 | жёсткая локаль `'ru'` | `LOCALE_ID` приложения | дома локаль может быть `en-US` |
-| URL + `HttpClient` | `RegistryDataSource` | транспорт снаружи |
+| URL + `HttpClient` | `GpoTableDataSource` | транспорт снаружи |
 | `@swagger/api` в таблице | функции в `swaggerGridifyDataSource` | типы остаются на странице |
-| `advanced-search-rest` в ядре | `buildRegistrySearchFields` в ядре + `data-table-integrations/advanced-search` снаружи | ядро переносимо, drawer — проектный |
+| `advanced-search-rest` в ядре | `buildGpoTableSearchFields` в ядре + `gpo-table-integrations/advanced-search` снаружи | ядро переносимо, drawer — проектный |
 | `gpo-lib`, `BaseTable` | свои типы и состояние | нет легаси-зависимостей |
 | LESS | инлайн-CSS | пустой проект может быть на CSS |
 
 ### 7.2. Дом: пустой проект
 
 ```bash
-ng new registry-table-lab --standalone --style=css --strict
-cd registry-table-lab
+ng new gpo-table-lab --standalone --style=css --strict
+cd gpo-table-lab
 npm i ng-zorro-antd@18 @angular/cdk@18
 ```
 
@@ -2685,12 +2695,12 @@ npm i ng-zorro-antd@18 @angular/cdk@18
 @import 'ng-zorro-antd/ng-zorro-antd.min.css';
 ```
 
-Скопировать папку `src/app/lib/data-table` из рабочего проекта в `src/app/registry-table`.
+Скопировать папку `src/app/lib/gpo-table` из рабочего проекта в `src/app/gpo-table`.
 Создать демо-страницу на статическом источнике:
 
 ```ts
-import { RegistryColumn, RegistryTableComponent } from './registry-table';
-import { staticGridifyDataSource } from './registry-table/adapters';
+import { GpoTableColumn, GpoTableComponent } from './gpo-table';
+import { staticGridifyDataSource } from './gpo-table/adapters';
 
 interface DemoRow {
     id: number;
@@ -2707,12 +2717,12 @@ const ROWS: DemoRow[] = [
 @Component({
     selector: 'app-demo',
     standalone: true,
-    imports: [RegistryTableComponent],
-    template: `<app-registry-table [dataSource]="dataSource" [columns]="columns" />`,
+    imports: [GpoTableComponent],
+    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
 })
 export class DemoComponent {
     readonly dataSource = staticGridifyDataSource(ROWS);
-    readonly columns: RegistryColumn<keyof DemoRow>[] = [
+    readonly columns: GpoTableColumn<keyof DemoRow>[] = [
         { title: 'Наименование', field: 'name', isSortable: true },
         { title: 'Количество', field: 'count', type: 'number' },
         { title: 'Дата', field: 'createdAt', type: 'date' },
@@ -2734,17 +2744,17 @@ export class DemoComponent {
 - компоненты, шаблоны, стили, состояния;
 - сортировку, пагинацию, пусто/загрузку/ошибку;
 - шаблонные ячейки и колонки `text/number/date/template`;
-- `buildRegistrySearchFields` (поля поиска из колонок) и его тесты;
-- unit-тесты `RegistryTableStateService` (гоночный сценарий, сброс страницы, пустая страница);
+- `buildGpoTableSearchFields` (поля поиска из колонок) и его тесты;
+- unit-тесты `GpoTableStateService` (гоночный сценарий, сброс страницы, пустая страница);
 - адаптер `staticGridifyDataSource` и демо-страницу.
 
-Рабочие адаптеры (`swagger`), `data-table-integrations/advanced-search`, данные и страницы сюда не тащить:
+Рабочие адаптеры (`swagger`), `gpo-table-integrations/advanced-search`, данные и страницы сюда не тащить:
 они живут на стороне проекта. Для UI поиска дома достаточно простого своего контрола поверх
-`buildRegistrySearchFields`.
+`buildGpoTableSearchFields`.
 
 ### 7.4. Как перенести обратно
 
-1. Скопировать папку `registry-table` в `src/client/ias/src/app/lib/data-table` (заменить).
+1. Скопировать папку `gpo-table` в `src/client/ias/src/app/lib/gpo-table` (заменить).
 2. Внутри папки импорты относительные — править ничего не нужно.
 3. На странице оставить только рабочий `dataSource` (swagger-адаптер), `columns` и `filter`.
 4. Проверить: `npx tsc --noEmit -p tsconfig.app.json`, `ng build`, тесты.
@@ -2764,11 +2774,11 @@ export class DemoComponent {
 
 ### 7.6. Чек-лист перед переносом
 
-- [ ] в папке `data-table` нет импортов из `src/app`, `gpo-lib`, `@swagger/api`, `Utils`,
-      `typed-gridify` и `data-table-integrations`;
+- [ ] в папке `gpo-table` нет импортов из `src/app`, `gpo-lib`, `@swagger/api`, `Utils`,
+      `typed-gridify` и `gpo-table-integrations`;
 - [ ] нет `any`, `as any`, `@ts-ignore` и проектных алиасов;
 - [ ] нет `.less`/`.html`-файлов и ссылок на проектные темы;
-- [ ] `buildRegistrySearchFields` покрыт тестами (id/template/исключения/справочники);
+- [ ] `buildGpoTableSearchFields` покрыт тестами (id/template/исключения/справочники);
 - [ ] пустой проект собирается (`ng build`);
 - [ ] рабочий проект собирается (`ng build`) и проходит `tsc`;
 - [ ] `demo/` и `static`-адаптер не попали в публичный API ядра;
@@ -2779,7 +2789,7 @@ export class DemoComponent {
 ## 8. Открытые вопросы
 
 1. **Размер страницы по умолчанию.** В проекте `BaseTable` использует 150, в примерах выше — 150.
-   Если для новых REST-реестров удобнее 50 — поменять одно значение в `RegistryTableStateService`.
+   Если для новых REST-реестров удобнее 50 — поменять одно значение в `GpoTableStateService`.
 2. **Нужны ли строки-«итоги» внутри таблицы** (не в футере), например для группировок? В v1 —
    нет; при необходимости добавить тип строки или отдельный шаблон.
 3. **Нужен ли экспорт в v1.** Если да — определить контракт: страница передаёт колонки в
