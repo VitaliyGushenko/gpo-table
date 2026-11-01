@@ -1,6 +1,9 @@
 # Таблица реестра на сигналах: текущий `gpo-lib` и проект `gpo-table`
 
-> Статус: проект. Код новой таблицы ещё не написан.
+> Статус: реализовано. Актуальный API — в [README](./app/lib/gpo-table/README.md).
+> С версии 0.5 конфигурация (колонки, источник данных, фильтры и параметры) передаётся
+> через `GPO_TABLE_CONFIG`; в исторических примерах ниже ещё встречаются входы
+> `[dataSource]`, `[columns]` и т.п.
 >
 > Документ отвечает на два вопроса:
 > 1. Как сейчас устроена библиотека `src/app/lib` (`gpo-lib`) и почему её таблицу тяжело развивать.
@@ -301,16 +304,18 @@ src/app/lib/gpo-table/
 ├─ core/
 │  ├─ gpo-table.types.ts             // GpoTableColumn, GpoTableQuery, GpoTableDataSource
 │  ├─ gpo-table.helpers.ts           // readGpoTableValue, getErrorMessage, combineGridifyFilters
-│  └─ gpo-table-actions.ts           // GPO_TABLE_ACTIONS — действия строки из сервиса
+│  ├─ gpo-table-config.ts            // GPO_TABLE_CONFIG — колонки, источник данных, параметры
+│  └─ gpo-table-actions.ts           // GPO_TABLE_ACTIONS — действия таблицы и строки
 ├─ components/
 │  ├─ gpo-table.component.ts         // контейнер gpo-table
 │  ├─ head/gpo-table-head.component.ts // thead[gpo-table-head]
 │  ├─ body/gpo-table-body.component.ts // tbody[gpo-table-body]
 │  ├─ row/gpo-table-row.component.ts  // tr[gpo-table-row]
-│  ├─ row/gpo-table-row-actions.component.ts // меню «⋮»
+│  ├─ row/gpo-table-row-actions.component.ts // меню «⋮» и кастомные пункты
 │  └─ foot/gpo-table-foot.component.ts // gpo-table-foot
 ├─ directives/
 │  ├─ gpo-table-cell.directive.ts    // ng-template[gpoTableCell]
+│  ├─ gpo-table-aggregates.directive.ts // ng-template[gpoTableAggregates]
 │  └─ gpo-table-column-resize.directive.ts // ручка изменения ширины
 ├─ services/
 │  ├─ gpo-table-state.service.ts     // GpoTableStateService — сигналы и загрузка
@@ -419,6 +424,32 @@ export interface GpoTableColumnResize {
     readonly field: string;
     readonly width: number;
 }
+
+/** Готовый Gridify-фильтр или функция/сигнал для динамического значения */
+export type GpoTableFilterValue = string | (() => string | undefined);
+
+/** Настройки таблицы: страница провайдит сервис под GPO_TABLE_CONFIG */
+export interface GpoTableConfig<
+    TRow extends object = Record<string, unknown>,
+    TAggregates = GpoTableAggregates,
+> {
+    readonly columns: readonly GpoTableColumn[];
+    readonly dataSource: GpoTableDataSource<TRow, TAggregates>;
+    readonly filter?: GpoTableFilterValue;
+    readonly searchFilter?: GpoTableFilterValue;
+    readonly pageSize?: number;
+    readonly pageSizeOptions?: readonly number[];
+    readonly rowKey?: string;
+    readonly scrollWidth?: string;
+    readonly storageKey?: string;
+    readonly bottomOffset?: number;
+    readonly emptyText?: string;
+    readonly isShowFooter?: boolean;
+}
+
+export const GPO_TABLE_CONFIG = new InjectionToken<GpoTableConfig>(
+    'GPO_TABLE_CONFIG',
+);
 
 /** Дополнительный пункт меню действий строки */
 export interface GpoTableRowAction<TRow = Record<string, unknown>> {
@@ -1140,14 +1171,15 @@ Gridify-строку. Старые классы остаются для ещё �
 
 #### `GpoTableComponent` — контейнер
 
-Входы:
+Входов конфигурации у компонента нет: страница провайдит сервис под `GPO_TABLE_CONFIG`
+(аналогично действиям). Поля конфига:
 
-| Вход | Тип | Назначение |
+| Поле | Тип | Назначение |
 |---|---|---|
 | `columns` | `readonly GpoTableColumn[]` (required) | Описание колонок |
 | `dataSource` | `GpoTableDataSource<TRow, TAggregates>` (required) | Обёртка над swagger-методами `/qry` и `/aggregates` |
-| `filter` | `string` | Базовый Gridify-фильтр страницы (постоянные условия) |
-| `searchFilter` | `string` | Gridify-фильтр расширенного поиска; склеивается с `filter` через AND |
+| `filter` | `GpoTableFilterValue` | Базовый Gridify-фильтр страницы (постоянные условия) |
+| `searchFilter` | `GpoTableFilterValue` | Gridify-фильтр расширенного поиска; склеивается с `filter` через AND |
 | `pageSize` | `number` (150) | Начальный размер страницы |
 | `pageSizeOptions` | `readonly number[]` | Варианты размера страницы |
 | `rowKey` | `string` (`'id'`) | Поле уникального ключа строки для `track` |
@@ -1156,7 +1188,9 @@ Gridify-строку. Старые классы остаются для ещё �
 | `bottomOffset` | `number` (`0`) | Отступ снизу вне таблицы: padding страницы или внешний футер |
 | `emptyText` | `string` (`'Данные не найдены'`) | Текст пустого состояния |
 | `isShowFooter` | `boolean` (`true`) | Показывать встроенный футер (итоги + пагинация) |
-| `aggregatesTemplate` | `TemplateRef<GpoTableFooterContext<TAggregates>>` | Шаблон агрегатов во встроенном футере |
+
+`filter`/`searchFilter` — строка или функция/сигнал; функция читается в эффекте, поэтому
+смена её сигналов перезагружает данные.
 
 Выходы:
 
@@ -1193,6 +1227,9 @@ changeSort(sort: GpoTableSort | null): Promise<void>;
 <!-- шаблоны ячеек -->
 <ng-template gpoTableCell="field" let-row let-value="value" let-index="index">...</ng-template>
 
+<!-- шаблон агрегатов -->
+<ng-template gpoTableAggregates let-aggregates let-isLoading="isLoading">...</ng-template>
+
 <!-- произвольный контент над таблицей -->
 <div gpoTableHeader>...</div>
 
@@ -1200,25 +1237,21 @@ changeSort(sort: GpoTableSort | null): Promise<void>;
 <div gpoTableFooter>...</div>
 ```
 
-Инициализация и реакция на входы:
+Инициализация и реакция на конфиг:
 
 ```ts
 export class GpoTableComponent<TRow extends object, TAggregates = GpoTableAggregates> {
+    private readonly _config = inject(GPO_TABLE_CONFIG) as GpoTableConfig<TRow, TAggregates>;
     private readonly _state = inject(GpoTableStateService) as GpoTableStateService<TRow, TAggregates>;
 
-    readonly columns = input.required<readonly GpoTableColumn[]>();
-    readonly dataSource = input.required<GpoTableDataSource<TRow, TAggregates>>();
-    readonly filter = input<string>();
-    readonly searchFilter = input<string>();
-    readonly pageSize = input(150);
-    readonly pageSizeOptions = input<readonly number[]>([10, 30, 50, 100, 150, 200, 250]);
-    readonly isShowFooter = input(true);
     readonly aggregatesLoaded = output<TAggregates>();
     readonly totalChange = output<number>();
-    // ... остальные входы и выходы
+    // ... остальные выходы
 
     protected readonly state = this._state;
-    protected readonly visibleColumns = computed(() => this.columns().filter((column) => column.isVisible !== false));
+    protected readonly visibleColumns = computed(() =>
+        this._tableColumns().filter((column) => column.isVisible !== false),
+    );
 
     private _connectedSource: GpoTableDataSource<TRow, TAggregates> | null = null;
     private _lastFilter: string | undefined = undefined;
@@ -1226,9 +1259,9 @@ export class GpoTableComponent<TRow extends object, TAggregates = GpoTableAggreg
 
     constructor() {
         // Размер страницы: при инициализации только задаём значение (загрузку сделает
-        // эффект ниже), при последующем изменении входа — перезагружаем
+        // эффект ниже), при последующем изменении конфига — перезагружаем
         effect(() => {
-            const pageSize = this.pageSize();
+            const pageSize = this._config.pageSize ?? GPO_TABLE_DEFAULT_PAGE_SIZE;
             untracked(() => {
                 const pageBefore = this._state.page();
                 this._state.setPageSize(pageSize);
@@ -1246,8 +1279,11 @@ export class GpoTableComponent<TRow extends object, TAggregates = GpoTableAggreg
         // Источник, базовый фильтр и фильтр расширенного поиска; untracked — чтобы
         // загрузка не читала состояние в реактивном контексте и не запускала эффект повторно
         effect(() => {
-            const dataSource = this.dataSource();
-            const filter = combineGridifyFilters(this.filter(), this.searchFilter());
+            const dataSource = this._config.dataSource;
+            const filter = combineGridifyFilters(
+                resolveGpoTableFilter(this._config.filter),
+                resolveGpoTableFilter(this._config.searchFilter),
+            );
 
             untracked(() => {
                 const isSourceChanged = dataSource !== this._connectedSource;

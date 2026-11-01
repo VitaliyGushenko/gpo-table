@@ -1,30 +1,33 @@
 # gpo-table — таблица реестра на сигналах
 
-Переносимая таблица реестра: страница передаёт `dataSource` и `columns`, таблица сама грузит
-страницы, хранит состояние и показывает загрузку/пусто/ошибку.
+Переносимая таблица реестра. Страница провайдит настройки под токеном `GPO_TABLE_CONFIG`
+(колонки, источник данных и параметры), а сам компонент остаётся чистым:
+`<gpo-table />` сломает только контент-слоты и события.
 
 ## Что внутри
 
 | Файл | Роль |
 |---|---|
-| `components/gpo-table.component.ts` | контейнер `gpo-table`: входы, загрузка, слоты |
+| `components/gpo-table.component.ts` | контейнер `gpo-table`: чтение настроек, загрузка, слоты |
 | `components/head/gpo-table-head.component.ts` | шапка `thead[gpo-table-head]`, сортировка |
 | `components/body/gpo-table-body.component.ts` | тело `tbody[gpo-table-body]`, состояния |
 | `components/row/gpo-table-row.component.ts` | строка `tr[gpo-table-row]`, ячейки |
-| `components/row/gpo-table-row-actions.component.ts` | меню «⋮»: редактировать/удалить |
+| `components/row/gpo-table-row-actions.component.ts` | меню «⋮»: редактировать/удалить и кастомные пункты |
 | `components/foot/gpo-table-foot.component.ts` | футер `gpo-table-foot`, итоги и пагинация |
+| `core/gpo-table-config.ts` | токен `GPO_TABLE_CONFIG`, интерфейс настроек и фильтры |
 | `services/gpo-table-state.service.ts` | сигналы запроса, строк, агрегатов и ошибок |
 | `services/gpo-table-height.service.ts` | высота области таблицы до низа окна |
 | `services/gpo-table-column-width.service.ts` | сохранение ширин в `localStorage` |
 | `directives/gpo-table-column-resize.directive.ts` | ручка изменения ширины колонки |
 | `directives/gpo-table-cell.directive.ts` | `ng-template[gpoTableCell]` |
-| `core/gpo-table-actions.ts` | токен и интерфейс действий строки |
+| `directives/gpo-table-aggregates.directive.ts` | `ng-template[gpoTableAggregates]` |
+| `core/gpo-table-actions.ts` | токен и интерфейс действий таблицы и строки |
 | `core/gpo-table.types.ts` | `GpoTableColumn`, `GpoTableQuery`, `GpoTableDataSource` и др. |
 | `core/gpo-table.helpers.ts` | чтение и форматирование значений, текст ошибки, склейка фильтров |
 | `search/gpo-table-search-fields.ts` | поля расширенного поиска из колонок |
 | `adapters/` | `swaggerGridifyDataSource`, `staticGridifyDataSource` |
 
-Демо — внешний потребитель и лежит вне переносимой папки: `src/app/demo/gpo-table-demo/`.
+Демо — внешний потребитель и лежит вне переносимой папки: `src/app/demo/`.
 
 ## Зависимости
 
@@ -47,29 +50,79 @@
 
 ## Минимальная страница
 
+Настройки живут в сервисе страницы, а таблица получает их через `GPO_TABLE_CONFIG`:
+
 ```ts
-import { GpoTableColumn, GpoTableComponent } from 'src/app/lib/gpo-table';
+import { Injectable } from '@angular/core';
+import {
+    GPO_TABLE_CONFIG,
+    GpoTableColumn,
+    GpoTableComponent,
+    GpoTableConfig,
+} from 'src/app/lib/gpo-table';
 import { staticGridifyDataSource } from 'src/app/lib/gpo-table/adapters';
 
 type Row = { id: number; name: string; count: number; createdAt: string };
 
 const ROWS: Row[] = [{ id: 1, name: 'Первая строка', count: 12, createdAt: '2026-01-15' }];
 
-@Component({
-    selector: 'app-items',
-    standalone: true,
-    imports: [GpoTableComponent],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
-})
-export class ItemsComponent {
+@Injectable()
+export class ItemsTableConfig implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(ROWS);
     readonly columns: GpoTableColumn<keyof Row>[] = [
         { title: 'Наименование', field: 'name', isSortable: true },
         { title: 'Количество', field: 'count', type: 'number' },
         { title: 'Дата', field: 'createdAt', type: 'date' },
     ];
+    readonly pageSize = 10;
+    readonly storageKey = 'items';
 }
+
+@Component({
+    selector: 'app-items',
+    standalone: true,
+    imports: [GpoTableComponent],
+    providers: [
+        ItemsTableConfig,
+        { provide: GPO_TABLE_CONFIG, useExisting: ItemsTableConfig },
+    ],
+    template: `<gpo-table />`,
+})
+export class ItemsComponent {}
 ```
+
+Без провайдера `GPO_TABLE_CONFIG` таблица падает с понятной ошибкой: колонки и источник
+данных обязательны.
+
+## Настройки `GpoTableConfig`
+
+| Поле | По умолчанию | Назначение |
+|---|---|---|
+| `columns` | — (обязателен) | описание колонок |
+| `dataSource` | — (обязателен) | источник страниц и агрегатов |
+| `filter` | — | постоянный Gridify-фильтр: строка или функция/сигнал |
+| `searchFilter` | — | фильтр расширенного поиска: строка или функция/сигнал |
+| `pageSize` | `150` | начальный размер страницы |
+| `pageSizeOptions` | `[10, 30, 50, 100, 150, 200, 250]` | варианты размера |
+| `rowKey` | `'id'` | ключ строки |
+| `scrollWidth` | — | минимальная ширина таблицы; горизонтальный скролл при переполнении |
+| `storageKey` | — | ключ `localStorage` для ширин колонок |
+| `bottomOffset` | `0` | отступ снизу вне таблицы: padding страницы или внешний футер |
+| `emptyText` | `'Данные не найдены'` | текст пустого состояния |
+| `isShowFooter` | `true` | встроенный футер |
+
+`filter` и `searchFilter` можно задать строкой или функцией/сигналом. Функция читается
+в эффекте, поэтому при изменении её сигналов таблица сама перезагружает строки:
+
+```ts
+readonly filter = computed(() => (this.onlyActive() ? 'status=active' : undefined));
+```
+
+Выходы таблицы: `rowClick`, `rowDblClick`, `pageChange`, `pageSizeChange`, `sortChange`,
+`aggregatesLoaded`, `totalChange`.
+
+Публичные методы: `reload()`, `refreshHeight()`, `resetColumnWidths()`, `goToPage(page)`,
+`changePageSize(size)`, `changeSort(sort)`.
 
 ## Колонки
 
@@ -97,9 +150,11 @@ interface GpoTableColumn<TField extends string = string> {
 Шаблонная ячейка:
 
 ```html
-<gpo-table [dataSource]="dataSource" [columns]="columns">
+<gpo-table>
     <ng-template gpoTableCell="id" let-row let-value="value">
-        <button nz-button nzSize="small" (click)="$event.stopPropagation(); open(row)">Открыть</button>
+        <button nz-button nzSize="small" (click)="$event.stopPropagation(); open(row)">
+            Открыть
+        </button>
     </ng-template>
 </gpo-table>
 ```
@@ -113,35 +168,41 @@ swagger-интерфейсов приводите строку к своему �
 Сортировка: у сортируемых колонок всегда видны две стрелки, активная подсвечивается фоном.
 Клик переключает `asc → desc → без сортировки`.
 
-## Входы контейнера
+## Агрегаты
 
-| Вход | По умолчанию | Назначение |
-|---|---|---|
-| `columns` | — (обязателен) | описание колонок |
-| `dataSource` | — (обязателен) | источник страниц |
-| `filter` | — | постоянный Gridify-фильтр страницы |
-| `searchFilter` | — | фильтр расширенного поиска, склеивается с `filter` через AND |
-| `pageSize` | `150` | начальный размер страницы |
-| `pageSizeOptions` | `[10, 30, 50, 100, 150, 200, 250]` | варианты размера |
-| `rowKey` | `'id'` | ключ строки |
-| `scrollWidth` | — | минимальная ширина таблицы; горизонтальный скролл появляется при переполнении |
-| `storageKey` | — | ключ `localStorage` для ширин колонок; без него ширины живут только в памяти |
-| `bottomOffset` | `0` | отступ снизу вне таблицы: padding страницы или внешний футер |
-| `emptyText` | `'Данные не найдены'` | текст пустого состояния |
-| `isShowFooter` | `true` | встроенный футер |
-| `aggregatesTemplate` | — | свой блок итогов |
+Шаблон итогов передаётся контентной директивой и получает контекст футера:
 
-Выходы: `rowClick`, `rowDblClick`, `pageChange`, `pageSizeChange`, `sortChange`, `aggregatesLoaded`,
-`totalChange`.
+```html
+<gpo-table>
+    <ng-template gpoTableAggregates let-aggregates let-isLoading="isLoading" let-error="error">
+        @if (isLoading) {
+            <span>Загрузка итогов…</span>
+        } @else if (error) {
+            <span>Не удалось загрузить итоги</span>
+        } @else {
+            <span>Всего: <strong>{{ aggregates?.['count'] ?? 0 }}</strong></span>
+        }
+    </ng-template>
+</gpo-table>
+```
 
-Публичные методы: `reload()`, `refreshHeight()`, `resetColumnWidths()`, `goToPage(page)`,
-`changePageSize(size)`, `changeSort(sort)`.
+Импортируйте `GpoTableAggregatesDirective` в компонент страницы.
 
-### Действия таблицы и строки
+## Слоты над и под таблицей
 
-Первая колонка с кнопкой «⋮» и кнопка добавления над таблицей появляются, если страница
-провайдит сервис действий под токеном `GPO_TABLE_ACTIONS`. Входов для этого у таблицы нет —
-один сервис можно расширять новыми флагами и методами.
+```html
+<gpo-table>
+    <div gpoTableHeader>Заголовок, кнопки, поиск</div>
+    <div gpoTableFooter>Примечание или свой футер</div>
+</gpo-table>
+```
+
+Внутри `<table>` слоты не работают: там только `ng-template gpoTableCell`.
+
+## Действия таблицы и строки
+
+Первая колонка с кнопкой «⋮» и кнопка добавления в шапке появляются, если страница
+провайдит сервис действий под токеном `GPO_TABLE_ACTIONS`.
 
 ```ts
 import {
@@ -179,8 +240,13 @@ export class ItemsActions implements GpoTableActions<ItemRow> {
 }
 
 @Component({
-    providers: [{ provide: GPO_TABLE_ACTIONS, useClass: ItemsActions }],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+    providers: [
+        ItemsTableConfig,
+        { provide: GPO_TABLE_CONFIG, useExisting: ItemsTableConfig },
+        ItemsActions,
+        { provide: GPO_TABLE_ACTIONS, useExisting: ItemsActions },
+    ],
+    template: `<gpo-table />`,
 })
 export class ItemsComponent {}
 ```
@@ -207,25 +273,18 @@ export class ItemsComponent {}
 - колонка действий фиксированной ширины 64px, не сортируется и не ресайзится;
 - методы могут возвращать `Promise`, таблица их не ждёт и не показывает свой прогресс.
 
-### Ширины колонок
+## Ширины колонок
 
 Ширина меняется перетаскиванием ручки у правого края заголовка. Минимальная ширина — 60px.
 
-Если передан `storageKey`, ширины сохраняются в `localStorage` под ключом
+Если в настройках передан `storageKey`, ширины сохраняются в `localStorage` под ключом
 `gpo-table-columns:<storageKey>` и восстанавливаются при следующем открытии.
 Без ключа resize работает, но не сохраняется. Сбросить ширины можно методом
 `resetColumnWidths()` — он также удаляет ключ из `localStorage`.
 
-```html
-<gpo-table
-    [dataSource]="dataSource"
-    [columns]="columns"
-    storageKey="buy-gpo-table" />
-```
-
 Колонку можно исключить из resize: `{ ...column, isResizable: false }`.
 
-### Высота
+## Высота
 
 Таблица всегда занимает доступную высоту до низа окна: сервис измеряет положение области
 таблицы и высоту блока под ней (футер + слот `gpoTableFooter`), вычитает `bottomOffset`.
@@ -256,18 +315,8 @@ readonly dataSource: GpoTableDataSource<ItemRow> = {
 };
 ```
 
-`dataSource` должно быть стабильным полем класса, а не вызовом метода в шаблоне.
-
-## Слоты над и под таблицей
-
-```html
-<gpo-table [dataSource]="dataSource" [columns]="columns">
-    <div gpoTableHeader>Заголовок, кнопки, поиск</div>
-    <div gpoTableFooter>Примечание или свой футер</div>
-</gpo-table>
-```
-
-Внутри `<table>` слоты не работают: там только `ng-template gpoTableCell`.
+`dataSource` и `columns` должны быть стабильными полями сервиса, а не вызовами методов
+в шаблоне.
 
 ## Состояние
 
@@ -284,13 +333,15 @@ readonly dataSource: GpoTableDataSource<ItemRow> = {
 
 1. Скопировать папку `gpo-table` в `src/client/ias/src/app/lib/gpo-table`.
 2. Импорты внутри папки относительные — править ничего не нужно.
-3. На странице оставить `dataSource`, `columns` и при необходимости `filter`/`searchFilter`.
+3. На странице создать конфиг-сервис с `columns`, `dataSource` и при необходимости
+   `filter`/`searchFilter`; зарегистрировать его под `GPO_TABLE_CONFIG`.
 4. Адаптер swagger использовать вместо прямых URL.
 5. Проверить `npx tsc --noEmit -p tsconfig.app.json`, `ng build`, `ng test`.
 
 Интеграция расширенного поиска (`advanced-search-rest`) в ядро не входит: она живёт отдельно
 и подключается к слоту `gpoTableHeader`. Ядро строит только описания полей
-(`buildGpoTableSearchFields`) и принимает готовую Gridify-строку через `searchFilter`.
+(`buildGpoTableSearchFields`) и принимает готовую Gridify-строку через `searchFilter`
+в конфиге.
 
 ## Чего нет в v1
 

@@ -1,10 +1,12 @@
-import { Component, signal, Type, viewChild } from '@angular/core';
+import { Component, forwardRef, signal, Type, viewChild } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { staticGridifyDataSource } from '../adapters/index';
+import { GpoTableAggregatesDirective } from '../directives/gpo-table-aggregates.directive';
 import { GpoTableCellDirective } from '../directives/gpo-table-cell.directive';
 import { GPO_TABLE_ACTIONS, GpoTableActions } from '../core/gpo-table-actions';
+import { GPO_TABLE_CONFIG, GpoTableConfig } from '../core/gpo-table-config';
 import { GpoTableComponent } from './gpo-table.component';
 import { GpoTableColumn, GpoTableDataSource, GpoTableQuery } from '../core/gpo-table.types';
 
@@ -22,28 +24,32 @@ const ROWS: readonly Row[] = [
 @Component({
     standalone: true,
     imports: [GpoTableCellDirective, GpoTableComponent],
+    providers: [{ provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => HostComponent) }],
     template: `
-        <gpo-table [dataSource]="dataSource" [columns]="columns" [pageSize]="2" [storageKey]="'component-test'">
+        <gpo-table>
             <ng-template gpoTableCell="name" let-value="value">
                 <span class="name-cell">{{ value }}</span>
             </ng-template>
         </gpo-table>
     `,
 })
-class HostComponent {
+class HostComponent implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(ROWS);
     readonly columns: GpoTableColumn[] = [
         { title: 'ID', field: 'id', type: 'number', isSortable: true },
         { title: 'Наименование', field: 'name' },
     ];
+    readonly pageSize = 2;
+    readonly storageKey = 'component-test';
 }
 
 @Component({
     standalone: true,
     imports: [GpoTableComponent],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+    providers: [{ provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => ErrorHostComponent) }],
+    template: `<gpo-table />`,
 })
-class ErrorHostComponent {
+class ErrorHostComponent implements GpoTableConfig<Row> {
     private _calls = 0;
 
     readonly dataSource: GpoTableDataSource<Row> = {
@@ -67,35 +73,76 @@ const PAGINATION_ROWS: readonly Row[] = Array.from({ length: 57 }, (_, index) =>
 @Component({
     standalone: true,
     imports: [GpoTableComponent],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" [pageSize]="10" />`,
+    providers: [
+        { provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => PaginationHostComponent) },
+    ],
+    template: `<gpo-table />`,
 })
-class PaginationHostComponent {
+class PaginationHostComponent implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(PAGINATION_ROWS);
     readonly columns: GpoTableColumn[] = [{ title: 'ID', field: 'id', type: 'number' }];
+    readonly pageSize = 10;
     readonly table = viewChild.required(GpoTableComponent);
 }
 
 @Component({
     standalone: true,
     imports: [GpoTableComponent],
-    template: `
-        <gpo-table
-            [dataSource]="dataSource"
-            [columns]="columns"
-            [filter]="baseFilter"
-            [searchFilter]="searchFilter" />
-    `,
+    providers: [{ provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => FilterHostComponent) }],
+    template: `<gpo-table />`,
 })
-class FilterHostComponent {
+class FilterHostComponent implements GpoTableConfig<Row> {
     readonly queries: GpoTableQuery[] = [];
     readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
-    readonly baseFilter = 'status=active';
+    readonly filter = 'status=active';
     readonly searchFilter = 'name_contains=тест';
     readonly dataSource: GpoTableDataSource<Row> = {
         getPage: async (query) => {
             this.queries.push(query);
             return { rows: [], total: 0 };
         },
+    };
+}
+
+const dynamicFilterSignal = signal<string | undefined>('status=active');
+
+@Component({
+    standalone: true,
+    imports: [GpoTableComponent],
+    providers: [
+        { provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => DynamicFilterHostComponent) },
+    ],
+    template: `<gpo-table />`,
+})
+class DynamicFilterHostComponent implements GpoTableConfig<Row> {
+    readonly queries: GpoTableQuery[] = [];
+    readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
+    readonly filter = () => dynamicFilterSignal();
+    readonly dataSource: GpoTableDataSource<Row> = {
+        getPage: async (query) => {
+            this.queries.push(query);
+            return { rows: [], total: 0 };
+        },
+    };
+}
+
+@Component({
+    standalone: true,
+    imports: [GpoTableAggregatesDirective, GpoTableComponent],
+    providers: [{ provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => AggregatesHostComponent) }],
+    template: `
+        <gpo-table>
+            <ng-template gpoTableAggregates let-aggregates>
+                <span class="aggregates-count">{{ aggregates?.['count'] ?? 0 }}</span>
+            </ng-template>
+        </gpo-table>
+    `,
+})
+class AggregatesHostComponent implements GpoTableConfig<Row> {
+    readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
+    readonly dataSource: GpoTableDataSource<Row> = {
+        getPage: async () => ({ rows: ROWS, total: ROWS.length }),
+        getAggregates: async () => ({ count: 42 }),
     };
 }
 
@@ -123,6 +170,7 @@ const addActions: GpoTableActions = {
     standalone: true,
     imports: [GpoTableComponent],
     providers: [
+        { provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => ActionsHostComponent) },
         {
             provide: GPO_TABLE_ACTIONS,
             useValue: {
@@ -132,9 +180,9 @@ const addActions: GpoTableActions = {
             } satisfies GpoTableActions<Row>,
         },
     ],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+    template: `<gpo-table />`,
 })
-class ActionsHostComponent {
+class ActionsHostComponent implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(ROWS);
     readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
 }
@@ -144,6 +192,10 @@ class ActionsHostComponent {
     imports: [GpoTableComponent],
     providers: [
         {
+            provide: GPO_TABLE_CONFIG,
+            useExisting: forwardRef(() => ActionsDisabledHostComponent),
+        },
+        {
             provide: GPO_TABLE_ACTIONS,
             useValue: {
                 isEdit: false,
@@ -152,20 +204,9 @@ class ActionsHostComponent {
             } satisfies GpoTableActions<Row>,
         },
     ],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+    template: `<gpo-table />`,
 })
-class ActionsDisabledHostComponent {
-    readonly dataSource = staticGridifyDataSource(ROWS);
-    readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
-}
-
-@Component({
-    standalone: true,
-    imports: [GpoTableComponent],
-    providers: [{ provide: GPO_TABLE_ACTIONS, useValue: addActions }],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
-})
-class AddActionsHostComponent {
+class ActionsDisabledHostComponent implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(ROWS);
     readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
 }
@@ -174,6 +215,21 @@ class AddActionsHostComponent {
     standalone: true,
     imports: [GpoTableComponent],
     providers: [
+        { provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => AddActionsHostComponent) },
+        { provide: GPO_TABLE_ACTIONS, useValue: addActions },
+    ],
+    template: `<gpo-table />`,
+})
+class AddActionsHostComponent implements GpoTableConfig<Row> {
+    readonly dataSource = staticGridifyDataSource(ROWS);
+    readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
+}
+
+@Component({
+    standalone: true,
+    imports: [GpoTableComponent],
+    providers: [
+        { provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => CustomActionsHostComponent) },
         {
             provide: GPO_TABLE_ACTIONS,
             useValue: {
@@ -188,9 +244,9 @@ class AddActionsHostComponent {
             } satisfies GpoTableActions<Row>,
         },
     ],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+    template: `<gpo-table />`,
 })
-class CustomActionsHostComponent {
+class CustomActionsHostComponent implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(ROWS);
     readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
 }
@@ -199,6 +255,7 @@ class CustomActionsHostComponent {
     standalone: true,
     imports: [GpoTableComponent],
     providers: [
+        { provide: GPO_TABLE_CONFIG, useExisting: forwardRef(() => DynamicActionsHostComponent) },
         {
             provide: GPO_TABLE_ACTIONS,
             useValue: {
@@ -208,9 +265,9 @@ class CustomActionsHostComponent {
             } satisfies GpoTableActions<Row>,
         },
     ],
-    template: `<gpo-table [dataSource]="dataSource" [columns]="columns" />`,
+    template: `<gpo-table />`,
 })
-class DynamicActionsHostComponent {
+class DynamicActionsHostComponent implements GpoTableConfig<Row> {
     readonly dataSource = staticGridifyDataSource(ROWS);
     readonly columns: GpoTableColumn[] = [{ title: 'Наименование', field: 'name' }];
 }
@@ -234,6 +291,7 @@ describe('GpoTableComponent', () => {
         actionSpies.onEdit.calls.reset();
         actionSpies.onRemove.calls.reset();
         customActionSpy.calls.reset();
+        dynamicFilterSignal.set('status=active');
         canEditSignal.set(true);
         addSpy.calls.reset();
         addCanEditSignal.set(true);
@@ -539,5 +597,32 @@ describe('GpoTableComponent', () => {
         const queries = fixture.componentInstance.queries;
         expect(queries.length).toBe(1);
         expect(queries[0].filter).toBe('(status=active),(name_contains=тест)');
+    });
+
+    it('перечитывает данные при изменении фильтра-сигнала', async () => {
+        await configure(DynamicFilterHostComponent);
+        const fixture = TestBed.createComponent(DynamicFilterHostComponent);
+        await render(fixture);
+
+        const queries = fixture.componentInstance.queries;
+        expect(queries.length).toBe(1);
+        expect(queries[0].filter).toBe('(status=active)');
+
+        dynamicFilterSignal.set('status=blocked');
+        await render(fixture);
+
+        expect(queries.length).toBe(2);
+        expect(queries[1].filter).toBe('(status=blocked)');
+    });
+
+    it('рисует шаблон агрегатов из контентной директивы', async () => {
+        await configure(AggregatesHostComponent);
+        const fixture = TestBed.createComponent(AggregatesHostComponent);
+        await render(fixture);
+        await render(fixture);
+
+        const aggregates = fixture.nativeElement.querySelector('.aggregates-count') as HTMLElement;
+        expect(aggregates).not.toBeNull();
+        expect(aggregates.textContent?.trim()).toBe('42');
     });
 });

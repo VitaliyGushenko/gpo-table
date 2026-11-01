@@ -2,12 +2,12 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
+    contentChild,
     contentChildren,
     DestroyRef,
     effect,
     ElementRef,
     inject,
-    input,
     output,
     signal,
     TemplateRef,
@@ -18,9 +18,16 @@ import {
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzSpinModule } from 'ng-zorro-antd/spin';
 
+import { GpoTableAggregatesDirective } from '../directives/gpo-table-aggregates.directive';
 import { GpoTableCellDirective } from '../directives/gpo-table-cell.directive';
 import { GpoTableColumnWidthService } from '../services/gpo-table-column-width.service';
 import { combineGridifyFilters } from '../core/gpo-table.helpers';
+import {
+    GPO_TABLE_CONFIG,
+    GpoTableConfig,
+    GPO_TABLE_DEFAULT_PAGE_SIZE_OPTIONS,
+    resolveGpoTableFilter,
+} from '../core/gpo-table-config';
 import { GPO_TABLE_ACTIONS, isGpoTableEditAllowed, GpoTableActions } from '../core/gpo-table-actions';
 import { GpoTableBodyComponent } from './body/gpo-table-body.component';
 import { GpoTableFootComponent } from './foot/gpo-table-foot.component';
@@ -31,7 +38,6 @@ import {
     GPO_TABLE_COLUMN_MIN_WIDTH,
     GpoTableAggregates,
     GpoTableCellTemplate,
-    GpoTableColumn,
     GpoTableColumnResize,
     GpoTableColumnWidths,
     GpoTableDataSource,
@@ -202,6 +208,15 @@ export class GpoTableComponent<
     TRow extends object = Record<string, unknown>,
     TAggregates = GpoTableAggregates,
 > {
+    private readonly _config = (() => {
+        const config = inject(GPO_TABLE_CONFIG, { optional: true });
+        if (!config) {
+            throw new Error(
+                'gpo-table: предоставьте GPO_TABLE_CONFIG с колонками и источником данных',
+            );
+        }
+        return config as GpoTableConfig<TRow, TAggregates>;
+    })();
     private readonly _state = inject(GpoTableStateService) as GpoTableStateService<TRow, TAggregates>;
     private readonly _heightService = inject(GpoTableHeightService);
     private readonly _columnWidthService = inject(GpoTableColumnWidthService);
@@ -213,25 +228,20 @@ export class GpoTableComponent<
     private readonly _columnWidths = signal<GpoTableColumnWidths>({});
     /** Ширина колонки во время перетаскивания: минимальная ширина таблицы меняется вместе с ней */
     private readonly _resizePreview = signal<GpoTableColumnResize | null>(null);
+    private readonly _aggregatesDirective = contentChild(GpoTableAggregatesDirective);
 
-    readonly columns = input.required<readonly GpoTableColumn[]>();
-    readonly dataSource = input.required<GpoTableDataSource<TRow, TAggregates>>();
-    /** Постоянный Gridify-фильтр страницы */
-    readonly filter = input<string>();
-    /** Gridify-фильтр расширенного поиска; склеивается с filter через AND */
-    readonly searchFilter = input<string>();
-    readonly pageSize = input(GPO_TABLE_DEFAULT_PAGE_SIZE);
-    readonly pageSizeOptions = input<readonly number[]>([10, 30, 50, 100, 150, 200, 250]);
-    readonly rowKey = input('id');
-    /** Ширина для горизонтального скролла; без неё горизонтальный скролл выключен */
-    readonly scrollWidth = input<string>();
-    /** Ключ localStorage для ширин колонок; без него ширины живут только в памяти */
-    readonly storageKey = input<string>();
-    /** Отступ снизу вне таблицы: padding страницы или внешний футер */
-    readonly bottomOffset = input(0);
-    readonly emptyText = input('Данные не найдены');
-    readonly isShowFooter = input(true);
-    readonly aggregatesTemplate = input<TemplateRef<GpoTableFooterContext<TAggregates>>>();
+    protected readonly pageSizeOptions = computed(
+        () => this._config.pageSizeOptions ?? GPO_TABLE_DEFAULT_PAGE_SIZE_OPTIONS,
+    );
+    protected readonly rowKey = computed(() => this._config.rowKey ?? 'id');
+    protected readonly emptyText = computed(() => this._config.emptyText ?? 'Данные не найдены');
+    protected readonly isShowFooter = computed(() => this._config.isShowFooter ?? true);
+    protected readonly aggregatesTemplate = computed(() => {
+        const directive = this._aggregatesDirective();
+        return directive?.templateRef as
+            | TemplateRef<GpoTableFooterContext<TAggregates>>
+            | undefined;
+    });
 
     readonly rowClick = output<TRow>();
     readonly rowDblClick = output<TRow>();
@@ -255,7 +265,7 @@ export class GpoTableComponent<
     protected readonly addLabel = computed(() => this._actions?.addLabel?.trim() || 'Добавить');
     private readonly _tableColumns = computed(() => {
         const widths = this._columnWidths();
-        return this.columns().map((column) => {
+        return this._config.columns.map((column) => {
             const width = widths[column.field];
             return width ? { ...column, width: `${width}px` } : column;
         });
@@ -266,7 +276,7 @@ export class GpoTableComponent<
     protected readonly isTableLoading = computed(() => this.state.isLoading() && this.state.hasRows());
     protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeight());
     protected readonly tableMinWidth = computed(() => {
-        const scrollWidth = this.scrollWidth();
+        const scrollWidth = this._config.scrollWidth;
         if (scrollWidth) {
             return scrollWidth;
         }
@@ -301,7 +311,7 @@ export class GpoTableComponent<
         // Размер страницы: при инициализации только задаём значение, при изменении входа — перезагружаем
         effect(
             () => {
-                const pageSize = this.pageSize();
+                const pageSize = this._config.pageSize ?? GPO_TABLE_DEFAULT_PAGE_SIZE;
                 untracked(() => {
                     const pageBefore = this._state.page();
                     this._state.setPageSize(pageSize);
@@ -321,9 +331,12 @@ export class GpoTableComponent<
         // Источник, базовый фильтр и фильтр расширенного поиска
         effect(
             () => {
-                const dataSource = this.dataSource();
-                const filter = combineGridifyFilters(this.filter(), this.searchFilter());
-                const pageSize = this.pageSize();
+                const dataSource = this._config.dataSource;
+                const filter = combineGridifyFilters(
+                    resolveGpoTableFilter(this._config.filter),
+                    resolveGpoTableFilter(this._config.searchFilter),
+                );
+                const pageSize = this._config.pageSize ?? GPO_TABLE_DEFAULT_PAGE_SIZE;
 
                 untracked(() => {
                     const isSourceChanged = dataSource !== this._connectedSource;
@@ -366,7 +379,7 @@ export class GpoTableComponent<
             () => {
                 const scroll = this._scrollArea()?.nativeElement;
                 const below = this._belowTable()?.nativeElement;
-                const bottomOffset = this.bottomOffset();
+                const bottomOffset = this._config.bottomOffset ?? 0;
 
                 untracked(() => {
                     if (scroll && below) {
@@ -380,7 +393,7 @@ export class GpoTableComponent<
         // Ширины колонок: читаем сохранённые один раз на ключ
         effect(
             () => {
-                const storageKey = this.storageKey();
+                const storageKey = this._config.storageKey;
                 untracked(() => {
                     if (this._isStorageKeyLoaded && this._loadedStorageKey === storageKey) {
                         return;
@@ -409,7 +422,7 @@ export class GpoTableComponent<
     /** Сбросить ширины колонок и удалить их из localStorage */
     resetColumnWidths(): void {
         this._columnWidths.set({});
-        this._columnWidthService.clear(this.storageKey());
+        this._columnWidthService.clear(this._config.storageKey);
     }
 
     /** Перейти на страницу; для своего футера или внешней панели */
@@ -471,7 +484,7 @@ export class GpoTableComponent<
         const width = Math.max(GPO_TABLE_COLUMN_MIN_WIDTH, Math.round(event.width));
         this._resizePreview.set(null);
         this._columnWidths.update((widths) => ({ ...widths, [event.field]: width }));
-        this._columnWidthService.save(this.storageKey(), this._columnWidths());
+        this._columnWidthService.save(this._config.storageKey, this._columnWidths());
     }
 
     protected onColumnResizePreview(event: GpoTableColumnResize | null): void {
