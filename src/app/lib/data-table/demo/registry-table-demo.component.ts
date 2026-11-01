@@ -1,5 +1,5 @@
 import { DecimalPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, Injectable, signal, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
@@ -7,9 +7,10 @@ import { NzSwitchModule } from 'ng-zorro-antd/switch';
 
 import { staticGridifyDataSource } from '../adapters';
 import { RegistryCellDirective } from '../registry-cell.directive';
-import { REGISTRY_TABLE_ACTIONS, RegistryTableActions } from '../registry-table-actions';
+import { REGISTRY_TABLE_ACTIONS } from '../registry-table-actions';
 import { RegistryTableComponent } from '../registry-table.component';
 import { RegistryColumn, RegistryDataSource } from '../registry-table.types';
+import { RegistryTableDemoActionsService } from './registry-table-demo-actions.service';
 
 type DemoRow = {
     id: number;
@@ -45,23 +46,6 @@ const DEMO_ROWS: readonly DemoRow[] = Array.from({ length: 57 }, (_, index) => {
     };
 });
 
-const demoActionMessage = signal('Демонстрационная таблица готова к работе');
-const demoCanEdit = signal(true);
-
-/** Демонстрационный сервис действий: показывает, откуда таблица берёт edit/remove */
-@Injectable()
-class DemoRowActionsService implements RegistryTableActions<Record<string, unknown>> {
-    readonly isEdit = demoCanEdit;
-
-    onEdit(row: Record<string, unknown>): void {
-        demoActionMessage.set(`Редактирование: ${row['name']}`);
-    }
-
-    onRemove(row: Record<string, unknown>): void {
-        demoActionMessage.set(`Удаление: ${row['name']}`);
-    }
-}
-
 /** Демонстрационная страница таблицы реестра на данных в памяти */
 @Component({
     selector: 'app-registry-table-demo',
@@ -76,7 +60,10 @@ class DemoRowActionsService implements RegistryTableActions<Record<string, unkno
         RegistryTableComponent,
     ],
     changeDetection: ChangeDetectionStrategy.OnPush,
-    providers: [{ provide: REGISTRY_TABLE_ACTIONS, useClass: DemoRowActionsService }],
+    providers: [
+        RegistryTableDemoActionsService,
+        { provide: REGISTRY_TABLE_ACTIONS, useExisting: RegistryTableDemoActionsService },
+    ],
     template: `
         <app-registry-table
             [dataSource]="dataSource"
@@ -231,11 +218,13 @@ class DemoRowActionsService implements RegistryTableActions<Record<string, unkno
     ],
 })
 export class RegistryTableDemoComponent {
+    private readonly _actions = inject(RegistryTableDemoActionsService);
+
     readonly onlyActive = signal(false);
     readonly quickSearch = signal('');
     readonly fail = signal(false);
-    readonly lastAction = demoActionMessage;
-    readonly canEdit = demoCanEdit;
+    readonly lastAction = this._actions.lastAction;
+    readonly canEdit = this._actions.isEdit;
     readonly filter = computed(() => buildDemoFilter(this.onlyActive(), this.quickSearch()));
 
     private readonly _staticSource = staticGridifyDataSource<DemoRow>(DEMO_ROWS, isDemoMatch);
