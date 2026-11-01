@@ -1,7 +1,12 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 
 import { GpoTableColumnResizeDirective } from '../../directives/gpo-table-column-resize.directive';
-import { GpoTableColumn, GpoTableColumnResize, GpoTableSort } from '../../core/gpo-table.types';
+import {
+    GPO_TABLE_RESIZE_CURSOR,
+    GpoTableColumn,
+    GpoTableColumnResize,
+    GpoTableSort,
+} from '../../core/gpo-table.types';
 
 /** Шапка таблицы реестра: заголовки, сортировка и resize колонок */
 @Component({
@@ -27,7 +32,7 @@ import { GpoTableColumn, GpoTableColumnResize, GpoTableSort } from '../../core/g
                             class="gpo-table__sort"
                             [attr.aria-label]="'Сортировать: ' + column.title"
                             (click)="toggleSort(column)">
-                            <span class="gpo-table__sort-title">{{ column.title }}</span>
+                            <span class="gpo-table__title" [title]="column.title">{{ column.title }}</span>
                             <span class="gpo-table__sorter" aria-hidden="true">
                                 <span
                                     class="gpo-table__sorter-arrow"
@@ -42,15 +47,17 @@ import { GpoTableColumn, GpoTableColumnResize, GpoTableSort } from '../../core/g
                             </span>
                         </button>
                     } @else {
-                        {{ column.title }}
+                        <span class="gpo-table__title" [title]="column.title">{{ column.title }}</span>
                     }
 
                     @if (column.isResizable !== false) {
                         <span
                             gpoTableColumnResize
                             class="gpo-table__resize"
+                            [style.cursor]="resizeCursor"
                             [attr.aria-label]="'Изменить ширину: ' + column.title"
-                            (widthChange)="onColumnResize(column, $event)"></span>
+                            (widthChange)="onColumnResize(column, $event)"
+                            (widthPreviewChange)="onColumnResizePreview(column, $event)"></span>
                     }
                 </th>
             }
@@ -82,16 +89,15 @@ import { GpoTableColumn, GpoTableColumnResize, GpoTableSort } from '../../core/g
             .gpo-table__resize::after {
                 position: absolute;
                 top: 25%;
+                right: 0;
                 bottom: 25%;
-                left: 3px;
                 width: 1px;
                 background: transparent;
                 content: '';
                 transition: background-color 0.2s;
             }
 
-            .gpo-table__resize:hover::after,
-            .gpo-table__resize:focus-visible::after {
+            .gpo-table__resize:hover::after {
                 background: #1677ff;
             }
 
@@ -110,9 +116,13 @@ import { GpoTableColumn, GpoTableColumnResize, GpoTableSort } from '../../core/g
                 cursor: pointer;
             }
 
-            .gpo-table__sort-title {
+            .gpo-table__title {
+                display: block;
                 flex: 1;
                 min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
             }
 
             .gpo-table__sorter {
@@ -143,6 +153,8 @@ import { GpoTableColumn, GpoTableColumnResize, GpoTableSort } from '../../core/g
     ],
 })
 export class GpoTableHeadComponent {
+    protected readonly resizeCursor = GPO_TABLE_RESIZE_CURSOR;
+
     /** Видимые колонки */
     readonly columns = input.required<readonly GpoTableColumn[]>();
 
@@ -157,6 +169,9 @@ export class GpoTableHeadComponent {
 
     /** Изменение ширины колонки */
     readonly columnResize = output<GpoTableColumnResize>();
+
+    /** Ширина во время перетаскивания; null — жест завершён */
+    readonly columnResizePreview = output<GpoTableColumnResize | null>();
 
     protected getAlign(column: GpoTableColumn): string {
         return column.align ?? (column.type === 'number' ? 'right' : 'left');
@@ -194,5 +209,9 @@ export class GpoTableHeadComponent {
 
     protected onColumnResize(column: GpoTableColumn, width: number): void {
         this.columnResize.emit({ field: column.field, width });
+    }
+
+    protected onColumnResizePreview(column: GpoTableColumn, width: number | null): void {
+        this.columnResizePreview.emit(width === null ? null : { field: column.field, width });
     }
 }

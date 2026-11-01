@@ -50,6 +50,7 @@ interface GpoTableCellView {
         `
             .gpo-table__actions-cell {
                 width: 64px;
+                padding: 0;
                 text-align: center;
             }
         `,

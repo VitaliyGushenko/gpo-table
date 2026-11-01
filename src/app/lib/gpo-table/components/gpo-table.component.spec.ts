@@ -326,6 +326,28 @@ describe('GpoTableComponent', () => {
         expect(stored['id']).toBe(180);
     });
 
+    it('не меняет минимальную ширину таблицы при отпускании колонки', async () => {
+        await configure(HostComponent);
+        const fixture = TestBed.createComponent(HostComponent);
+        await render(fixture);
+
+        const table = fixture.nativeElement.querySelector('table') as HTMLTableElement;
+        const th = fixture.nativeElement.querySelector('thead th') as HTMLElement;
+        spyOn(th, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, 120, 40));
+        const handle = th.querySelector('.gpo-table__resize') as HTMLElement;
+
+        handle.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, clientX: 100, button: 0 }));
+        document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: 160 }));
+        await render(fixture);
+        const widthDuringDrag = table.style.minWidth;
+
+        document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: 160 }));
+        await render(fixture);
+
+        expect(widthDuringDrag).toBe('300px');
+        expect(table.style.minWidth).toBe(widthDuringDrag);
+    });
+
     it('рисует колонку действий и вызывает сервис редактирования', async () => {
         await configure(ActionsHostComponent);
         const fixture = TestBed.createComponent(ActionsHostComponent);

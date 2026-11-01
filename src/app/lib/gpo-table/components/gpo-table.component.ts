@@ -82,7 +82,8 @@ function getColumnWidthPx(width: string | undefined): number {
                                 [hasActions]="hasActions()"
                                 [sort]="state.sort()"
                                 (sortChange)="changeSort($event)"
-                                (columnResize)="onColumnResize($event)"></thead>
+                                (columnResize)="onColumnResize($event)"
+                                (columnResizePreview)="onColumnResizePreview($event)"></thead>
 
                             <tbody
                                 class="ant-table-tbody"
@@ -148,7 +149,7 @@ function getColumnWidthPx(width: string | undefined): number {
                 z-index: 1;
             }
 
-            :host ::ng-deep .ant-table-tbody > tr:not(.gpo-table__state-row) > td {
+            :host ::ng-deep .ant-table-tbody > tr:not(.gpo-table__state-row) > td:not(.gpo-table__actions-cell) {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
@@ -173,6 +174,8 @@ export class GpoTableComponent<
     private readonly _scrollArea = viewChild<ElementRef<HTMLElement>>('scrollArea');
     private readonly _belowTable = viewChild<ElementRef<HTMLElement>>('belowTable');
     private readonly _columnWidths = signal<GpoTableColumnWidths>({});
+    /** Ширина колонки во время перетаскивания: минимальная ширина таблицы меняется вместе с ней */
+    private readonly _resizePreview = signal<GpoTableColumnResize | null>(null);
 
     readonly columns = input.required<readonly GpoTableColumn[]>();
     readonly dataSource = input.required<GpoTableDataSource<TRow, TAggregates>>();
@@ -227,8 +230,10 @@ export class GpoTableComponent<
             return scrollWidth;
         }
 
+        const preview = this._resizePreview();
         const columnsWidth = this.visibleColumns().reduce(
-            (sum, column) => sum + getColumnWidthPx(column.width),
+            (sum, column) =>
+                sum + (preview?.field === column.field ? preview.width : getColumnWidthPx(column.width)),
             0,
         );
         const actionsWidth = this.hasActions() ? ACTIONS_COLUMN_WIDTH : 0;
@@ -419,7 +424,19 @@ export class GpoTableComponent<
 
     protected onColumnResize(event: GpoTableColumnResize): void {
         const width = Math.max(GPO_TABLE_COLUMN_MIN_WIDTH, Math.round(event.width));
+        this._resizePreview.set(null);
         this._columnWidths.update((widths) => ({ ...widths, [event.field]: width }));
         this._columnWidthService.save(this.storageKey(), this._columnWidths());
+    }
+
+    protected onColumnResizePreview(event: GpoTableColumnResize | null): void {
+        const current = this._resizePreview();
+        if (
+            current === event ||
+            (current?.field === event?.field && current?.width === event?.width)
+        ) {
+            return;
+        }
+        this._resizePreview.set(event);
     }
 }

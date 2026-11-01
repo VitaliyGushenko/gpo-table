@@ -11,7 +11,10 @@ import { GpoTableColumnResizeDirective } from './gpo-table-column-resize.directi
             <thead>
                 <tr>
                     <th style="width: 120px">
-                        <span gpoTableColumnResize (widthChange)="widths.push($event)"></span>
+                        <span
+                            gpoTableColumnResize
+                            (widthChange)="widths.push($event)"
+                            (widthPreviewChange)="previews.push($event)"></span>
                     </th>
                 </tr>
             </thead>
@@ -20,6 +23,7 @@ import { GpoTableColumnResizeDirective } from './gpo-table-column-resize.directi
 })
 class HostComponent {
     readonly widths: number[] = [];
+    readonly previews: (number | null)[] = [];
 }
 
 function render(fixture: ComponentFixture<unknown>): void {
@@ -48,6 +52,43 @@ describe('GpoTableColumnResizeDirective', () => {
         expect(th.style.width).toBe('180px');
     });
 
+    it('отдаёт ширину на время перетаскивания и сбрасывает после отпускания', () => {
+        TestBed.configureTestingModule({ imports: [HostComponent] });
+        const fixture = TestBed.createComponent(HostComponent);
+        render(fixture);
+
+        const th = fixture.nativeElement.querySelector('th') as HTMLElement;
+        spyOn(th, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, 120, 40));
+        const handle = th.querySelector('[gpoTableColumnResize]') as HTMLElement;
+
+        handle.dispatchEvent(pointer('pointerdown', 100));
+        document.dispatchEvent(pointer('pointermove', 160));
+        document.dispatchEvent(pointer('pointerup', 160));
+
+        expect(fixture.componentInstance.previews).toEqual([180, null]);
+    });
+
+    it('не прыгает, если таблица растянула колонку шире её ширины', () => {
+        TestBed.configureTestingModule({ imports: [HostComponent] });
+        const fixture = TestBed.createComponent(HostComponent);
+        render(fixture);
+
+        const th = fixture.nativeElement.querySelector('th') as HTMLElement;
+        th.style.width = '60px';
+        spyOn(th, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, 120, 40));
+        const table = th.closest('table') as HTMLElement;
+        spyOn(table, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, 300, 40));
+        const handle = th.querySelector('[gpoTableColumnResize]') as HTMLElement;
+
+        handle.dispatchEvent(pointer('pointerdown', 100));
+        document.dispatchEvent(pointer('pointermove', 106));
+        document.dispatchEvent(pointer('pointerup', 106));
+
+        // Тянем от 60px в модели, а не от 120px фактической ширины
+        expect(fixture.componentInstance.widths).toEqual([65]);
+        expect(th.style.width).toBe('65px');
+    });
+
     it('не сжимает колонку меньше минимальной ширины', () => {
         TestBed.configureTestingModule({ imports: [HostComponent] });
         const fixture = TestBed.createComponent(HostComponent);
@@ -64,17 +105,4 @@ describe('GpoTableColumnResizeDirective', () => {
         expect(fixture.componentInstance.widths).toEqual([60]);
     });
 
-    it('меняет ширину с клавиатуры', () => {
-        TestBed.configureTestingModule({ imports: [HostComponent] });
-        const fixture = TestBed.createComponent(HostComponent);
-        render(fixture);
-
-        const th = fixture.nativeElement.querySelector('th') as HTMLElement;
-        spyOn(th, 'getBoundingClientRect').and.returnValue(new DOMRect(0, 0, 120, 40));
-        const handle = th.querySelector('[gpoTableColumnResize]') as HTMLElement;
-
-        handle.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
-
-        expect(fixture.componentInstance.widths).toEqual([136]);
-    });
 });

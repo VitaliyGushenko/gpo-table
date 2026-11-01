@@ -9,6 +9,13 @@ export type GpoTableValue = string | number | boolean | Date | null | undefined;
 /** Минимальная ширина колонки при изменении размера */
 export const GPO_TABLE_COLUMN_MIN_WIDTH = 60;
 
+/**
+ * Курсор изменения ширины: системный col-resize на светлой шапке малозаметен,
+ * поэтому рисуем контрастную синюю стрелку с белой обводкой.
+ */
+export const GPO_TABLE_RESIZE_CURSOR =
+    'url("data:image/svg+xml,%3Csvg%20xmlns=\'http://www.w3.org/2000/svg\'%20width=\'16\'%20height=\'16\'%20viewBox=\'0%200%2016%2016\'%3E%3Cpath%20d=\'M2%208%207%204v8z\'%20fill=\'%23fff\'%20stroke=\'%23fff\'%20stroke-width=\'2\'%20stroke-linejoin=\'round\'/%3E%3Cpath%20d=\'M14%208%209%204v8z\'%20fill=\'%23fff\'%20stroke=\'%23fff\'%20stroke-width=\'2\'%20stroke-linejoin=\'round\'/%3E%3Cpath%20d=\'M2%208%207%204v8z\'%20fill=\'%231677ff\'/%3E%3Cpath%20d=\'M14%208%209%204v8z\'%20fill=\'%231677ff\'/%3E%3C/svg%3E") 8 8, col-resize';
+
 /** Ширины колонок, сохранённые по полю строки */
 export type GpoTableColumnWidths = Readonly<Record<string, number>>;
 

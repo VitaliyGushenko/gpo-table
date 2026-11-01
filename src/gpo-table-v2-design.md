@@ -1697,10 +1697,9 @@ protected readonly scrollMaxHeight = computed(() => this._heightService.maxHeigh
 #### 3.8.2. Resize колонок и хранение ширин
 
 У каждой колонки, кроме `isResizable: false`, в шапке есть ручка у правого края. Перетаскивание
-меняет ширину `th` вживую, отпускание отдаёт итоговую ширину в контейнер. С клавиатуры работают
-`←`/`→`, с `Shift` — крупнее; минимум — 60px.
+меняет ширину `th` вживую, отпускание отдаёт итоговую ширину в контейнер. Минимум — 60px.
 
-- `GpoTableColumnResizeDirective` — только pointer/keyboard и ширина `th`, ничего не знает
+- `GpoTableColumnResizeDirective` — только pointer и ширина `th`, ничего не знает
   о `localStorage`;
 - контейнер хранит `signal<GpoTableColumnWidths>` и строит эффективные колонки:
   сохранённая ширина перекрывает `column.width`;
