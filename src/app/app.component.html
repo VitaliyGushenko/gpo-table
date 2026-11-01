@@ -1,1 +1,21 @@
-<router-outlet />
+<nz-layout class="app-shell">
+    <nz-sider class="app-shell__sider" nzTheme="light" [nzWidth]="232">
+        <a class="app-shell__brand" routerLink="/registry">gpo-table</a>
+
+        <ul nz-menu nzMode="inline" class="app-shell__menu">
+            <li nz-menu-item routerLinkActive="ant-menu-item-selected">
+                <a routerLink="/registry">Реестр записей</a>
+            </li>
+            <li nz-menu-item routerLinkActive="ant-menu-item-selected">
+                <a routerLink="/employees">Сотрудники</a>
+            </li>
+            <li nz-menu-item routerLinkActive="ant-menu-item-selected">
+                <a routerLink="/orders">Заказы</a>
+            </li>
+        </ul>
+    </nz-sider>
+
+    <nz-content class="app-shell__content">
+        <router-outlet />
+    </nz-content>
+</nz-layout>
