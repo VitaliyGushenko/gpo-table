@@ -8,6 +8,7 @@ import {
     effect,
     ElementRef,
     inject,
+    NgZone,
     output,
     signal,
     TemplateRef,
@@ -231,6 +232,14 @@ function pinnedOffsetsEqual(a: GpoTablePinnedOffsets, b: GpoTablePinnedOffsets):
                 background: #e6f4ff;
             }
 
+            :host ::ng-deep .gpo-table__scroll--shadow-left .gpo-table__pinned-boundary-left {
+                box-shadow: 6px 0 8px -4px rgb(0 0 0 / 28%);
+            }
+
+            :host ::ng-deep .gpo-table__scroll--shadow-right .gpo-table__pinned-boundary-right {
+                box-shadow: -6px 0 8px -4px rgb(0 0 0 / 28%);
+            }
+
             :host ::ng-deep .ant-table-tbody > tr:not(.gpo-table__state-row) > td:not(.gpo-table__actions-cell) {
                 overflow: hidden;
                 text-overflow: ellipsis;
@@ -259,6 +268,7 @@ export class GpoTableComponent<
     private readonly _state = inject(GpoTableStateService) as GpoTableStateService<TRow, TAggregates>;
     private readonly _heightService = inject(GpoTableHeightService);
     private readonly _columnWidthService = inject(GpoTableColumnWidthService);
+    private readonly _zone = inject(NgZone);
     private readonly _actions = inject(GPO_TABLE_ACTIONS, { optional: true }) as
         | GpoTableActions<TRow>
         | null;
@@ -272,6 +282,9 @@ export class GpoTableComponent<
     private readonly _pinnedOffsets = signal<GpoTablePinnedOffsets>(new Map());
     private _pinnedObserver: ResizeObserver | null = null;
     private _pinnedTimer: ReturnType<typeof setTimeout> | null = null;
+    private _shadowScroll: HTMLElement | null = null;
+    private _shadowScrollHandler: (() => void) | null = null;
+    private _shadowScrollObserver: ResizeObserver | null = null;
     private readonly _aggregatesDirective = contentChild(GpoTableAggregatesDirective);
 
     protected readonly pageSizeOptions = computed(
@@ -465,8 +478,21 @@ export class GpoTableComponent<
             EFFECT_OPTIONS,
         );
 
+        // Тени у границ закреплённых колонок: только когда под ними есть контент
+        effect(
+            () => {
+                const scroll = this._scrollArea()?.nativeElement;
+                if (!scroll) {
+                    return;
+                }
+                untracked(() => this._watchScrollShadows(scroll));
+            },
+            EFFECT_OPTIONS,
+        );
+
         inject(DestroyRef).onDestroy(() => {
             this._pinnedObserver?.disconnect();
+            this._unwatchScrollShadows();
             if (this._pinnedTimer) {
                 clearTimeout(this._pinnedTimer);
             }
@@ -637,5 +663,54 @@ export class GpoTableComponent<
         if (!pinnedOffsetsEqual(this._pinnedOffsets(), offsets)) {
             this._pinnedOffsets.set(offsets);
         }
+        this._updateScrollShadows();
+    }
+
+    private _watchScrollShadows(scroll: HTMLElement): void {
+        if (this._shadowScroll === scroll) {
+            this._updateScrollShadows();
+            return;
+        }
+
+        this._unwatchScrollShadows();
+        this._shadowScroll = scroll;
+        const handler = () => this._updateScrollShadows();
+        this._shadowScrollHandler = handler;
+
+        this._zone.runOutsideAngular(() => {
+            scroll.addEventListener('scroll', handler, { passive: true });
+            if (typeof ResizeObserver !== 'undefined') {
+                this._shadowScrollObserver = new ResizeObserver(() =>
+                    this._updateScrollShadows(),
+                );
+                this._shadowScrollObserver.observe(scroll);
+            }
+        });
+
+        this._updateScrollShadows();
+    }
+
+    private _unwatchScrollShadows(): void {
+        if (this._shadowScroll && this._shadowScrollHandler) {
+            this._shadowScroll.removeEventListener('scroll', this._shadowScrollHandler);
+        }
+        this._shadowScrollObserver?.disconnect();
+        this._shadowScrollObserver = null;
+        this._shadowScroll = null;
+        this._shadowScrollHandler = null;
+    }
+
+    private _updateScrollShadows(): void {
+        const scroll = this._shadowScroll;
+        if (!scroll) {
+            return;
+        }
+
+        const max = scroll.scrollWidth - scroll.clientWidth;
+        scroll.classList.toggle('gpo-table__scroll--shadow-left', scroll.scrollLeft > 0);
+        scroll.classList.toggle(
+            'gpo-table__scroll--shadow-right',
+            max > 0 && scroll.scrollLeft < max - 1,
+        );
     }
 }

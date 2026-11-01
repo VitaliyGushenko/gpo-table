@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 
 import { GpoTableColumnResizeDirective } from '../../directives/gpo-table-column-resize.directive';
 import {
@@ -20,6 +20,7 @@ import {
             @if (hasActions()) {
                 <th
                     class="gpo-table__actions-head gpo-table__pinned gpo-table__pinned-left"
+                    [class.gpo-table__pinned-boundary-left]="!hasLeftPinnedColumns()"
                     [style.left.px]="0"
                     aria-label="Действия"></th>
             }
@@ -181,6 +182,10 @@ export class GpoTableHeadComponent {
     /** Текущая сортировка */
     readonly sort = input<GpoTableSort | null>(null);
 
+    protected readonly hasLeftPinnedColumns = computed(() =>
+        this.columns().some((column) => column.fixed === 'left'),
+    );
+
     /** Клик по сортируемой колонке: asc → desc → без сортировки */
     readonly sortChange = output<GpoTableSort | null>();
 
@@ -198,6 +203,20 @@ export class GpoTableHeadComponent {
         const classes = [column.cssClass ?? ''];
         if (column.fixed) {
             classes.push('gpo-table__pinned', `gpo-table__pinned-${column.fixed}`);
+            const columns = this.columns();
+            const index = columns.indexOf(column);
+            if (
+                column.fixed === 'left' &&
+                !columns.slice(index + 1).some((item) => item.fixed === 'left')
+            ) {
+                classes.push('gpo-table__pinned-boundary-left');
+            }
+            if (
+                column.fixed === 'right' &&
+                !columns.slice(0, index).some((item) => item.fixed === 'right')
+            ) {
+                classes.push('gpo-table__pinned-boundary-right');
+            }
         }
         return classes.filter(Boolean).join(' ');
     }

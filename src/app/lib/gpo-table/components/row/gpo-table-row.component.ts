@@ -32,6 +32,7 @@ interface GpoTableCellView {
         @if (hasActions()) {
             <td
                 class="gpo-table__actions-cell gpo-table__pinned gpo-table__pinned-left"
+                [class.gpo-table__pinned-boundary-left]="!hasLeftPinnedColumns()"
                 [style.left.px]="0"
                 (click)="$event.stopPropagation()">
                 <gpo-table-row-actions [row]="rowRecord()"></gpo-table-row-actions>
@@ -91,6 +92,10 @@ export class GpoTableRowComponent<TRow extends object = Record<string, unknown>>
         this.columns().map((column) => this.prepareCell(column)),
     );
 
+    protected readonly hasLeftPinnedColumns = computed(() =>
+        this.columns().some((column) => column.fixed === 'left'),
+    );
+
     private prepareCell(column: GpoTableColumn): GpoTableCellView {
         const value = readGpoTableValue(this.row(), column.field);
         const type = column.type ?? 'text';
@@ -102,6 +107,20 @@ export class GpoTableRowComponent<TRow extends object = Record<string, unknown>>
         const classes = [column.cssClass ?? ''];
         if (column.fixed) {
             classes.push('gpo-table__pinned', `gpo-table__pinned-${column.fixed}`);
+            const columns = this.columns();
+            const columnIndex = columns.indexOf(column);
+            if (
+                column.fixed === 'left' &&
+                !columns.slice(columnIndex + 1).some((item) => item.fixed === 'left')
+            ) {
+                classes.push('gpo-table__pinned-boundary-left');
+            }
+            if (
+                column.fixed === 'right' &&
+                !columns.slice(0, columnIndex).some((item) => item.fixed === 'right')
+            ) {
+                classes.push('gpo-table__pinned-boundary-right');
+            }
         }
 
         return {
