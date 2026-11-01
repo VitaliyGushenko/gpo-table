@@ -5,11 +5,11 @@ import { NzButtonModule } from 'ng-zorro-antd/button';
 import { NzInputModule } from 'ng-zorro-antd/input';
 import { NzSwitchModule } from 'ng-zorro-antd/switch';
 
-import { staticGridifyDataSource } from '../adapters/index';
-import { GpoTableCellDirective } from '../directives/gpo-table-cell.directive';
-import { GPO_TABLE_ACTIONS } from '../core/gpo-table-actions';
-import { GpoTableComponent } from '../components/gpo-table.component';
-import { GpoTableColumn, GpoTableDataSource } from '../core/gpo-table.types';
+import { staticGridifyDataSource } from '../../lib/gpo-table/adapters/index';
+import { GpoTableCellDirective } from '../../lib/gpo-table/directives/gpo-table-cell.directive';
+import { GPO_TABLE_ACTIONS } from '../../lib/gpo-table/core/gpo-table-actions';
+import { GpoTableComponent } from '../../lib/gpo-table/components/gpo-table.component';
+import { GpoTableColumn, GpoTableDataSource } from '../../lib/gpo-table/core/gpo-table.types';
 import { GpoTableDemoActionsService } from './gpo-table-demo-actions.service';
 
 type DemoRow = {

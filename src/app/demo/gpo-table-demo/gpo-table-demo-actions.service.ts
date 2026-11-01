@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-import { GpoTableActions } from '../core/gpo-table-actions';
+import { GpoTableActions } from '../../lib/gpo-table/core/gpo-table-actions';
 
 /** Демонстрационные действия строки: пишут сообщение в футер демо-таблицы */
 @Injectable()

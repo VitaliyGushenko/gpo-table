@@ -23,7 +23,8 @@
 | `core/gpo-table.helpers.ts` | чтение и форматирование значений, текст ошибки, склейка фильтров |
 | `search/gpo-table-search-fields.ts` | поля расширенного поиска из колонок |
 | `adapters/` | `swaggerGridifyDataSource`, `staticGridifyDataSource` |
-| `demo/` | демонстрационная страница и сервис действий, в публичный API не входят |
+
+Демо — внешний потребитель и лежит вне переносимой папки: `src/app/demo/gpo-table-demo/`.
 
 ## Зависимости
 

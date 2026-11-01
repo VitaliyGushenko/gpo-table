@@ -4,7 +4,7 @@ export const routes: Routes = [
     {
         path: '',
         loadComponent: () =>
-            import('./lib/gpo-table/demo/gpo-table-demo.component').then(
+            import('./demo/gpo-table-demo/gpo-table-demo.component').then(
                 (module) => module.GpoTableDemoComponent,
             ),
     },

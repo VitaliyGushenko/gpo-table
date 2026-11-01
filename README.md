@@ -3,7 +3,7 @@
 Полигон для таблицы реестра `gpo-table`: Angular 19 + ng-zorro 19, данные в памяти.
 
 - таблица — `src/app/lib/gpo-table/` (описание и перенос — `README.md` внутри папки);
-- демо-страница — `src/app/lib/gpo-table/demo/gpo-table-demo.component.ts`;
+- демо-страница — `src/app/demo/gpo-table-demo/gpo-table-demo.component.ts`;
 - проектное задание — `src/gpo-table-v2-design.md`;
 - расширенный поиск из рабочего проекта — `src/app/advanced-search-rest/` (референс,
   в сборку и тесты не входит: ему нужны зависимости проекта is_nsi).
